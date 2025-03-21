@@ -172,7 +172,8 @@ class TeamOfTwo:
         self.player_A = player_A
         self.player_B = player_B
         # Store the names of the players in a set
-        self.players = set([player_A.name, player_B.name])
+        self.players = {player_A, player_B}
+        self.players_name = {player_A.name, player_B.name}
 
         # Calculate the level difference between the two players
         self.level_difference = abs(self.player_A.level - self.player_B.level)
@@ -242,9 +243,7 @@ class GameOfFour:
         self.team_B = team_B
 
         # Store the teams in a set of frozensets
-        self.teams = set(
-            [frozenset(self.team_A.players), frozenset(self.team_B.players)]
-        )
+        self.teams = set([team_A, team_B])
         # Store the participants of the game
         self.participants = frozenset(self.team_A.players.union(self.team_B.players))
         self.level_difference = abs(self.team_A.mean_level - self.team_B.mean_level)
@@ -276,104 +275,206 @@ for attr in ["preference", "teams", "participants", "level_difference"]:
 class GamesRound:
     def __init__(
         self,
-        list_of_players,
+        set_of_players,
         previous_games_rounds_anti_chron=[],
-        number_of_teams=2,
+        teams_per_game=2,
         players_per_team=2,
-        amount_of_games=1,
+        amount_of_games=None,
         preference=None,
+        num_iter=1000,
+        level_gap_tol=0.5,
     ):
-        self.df = pd.DataFrame([player.series for player in list_of_players])
+        self.df = pd.DataFrame([player.series for player in set_of_players])
 
-        self.amount_of_games = amount_of_games
+        if amount_of_games:
+            self.amount_of_games = amount_of_games
+        else:
+            self.amount_of_games = len(set_of_players) // (
+                teams_per_game * players_per_team
+            )
+
         self.preference = preference
-        self.people_present = {player.name for player in list_of_players}
-        self.people_present_names = {player.name for player in list_of_players}
+        self.people_present = {player for player in set_of_players}
+        self.people_present_names = {player.name for player in set_of_players}
         self.previous_games = previous_games_rounds_anti_chron
-        self.number_of_teams = number_of_teams
+        self.teams_per_game = teams_per_game
         self.players_per_team = players_per_team
+        self.num_iter = num_iter
+        self.level_gap_tol = level_gap_tol
 
         self.games = []
         self.create_games()
 
-        self.not_playing = {
-            ind
-            for ind in self.df.index
-            if ind not in set().union(*{game.participants for game in self.games})
-        }
-!!!!!!!!!! continuer la jeantrie création de plein de jeux!!!!!!!!
-    def create_games(self, amount_of_teams=2, players_per_team=2):
+        self.not_playing = self.people_present - set().union(
+            *{game.participants for game in self.games}
+        )
 
-        temp_df = self.df.copy()
+    def create_set_of_all_possible_teams(self):
+        # function that creates all possible teams of <players_per_team> players from a set of players
+        return {
+            TeamOfTwo(*team)
+            for team in combinations(self.people_playing, self.players_per_team)
+        }
+
+    def create_games(self):
+        import random
 
         ####removing players amongst the ones that had played the most##########
         # amount of players that wil not play
-        amount_non_playing = len(temp_df) % amount_of_teams * players_per_team
+        amount_non_playing = len(self.people_present_names) % (
+            self.players_per_team * self.teams_per_game
+        )
 
         # we split the players by amount of games played
-        dfs_per_games_played = [
-            temp_df[temp_df["Games played"] == i]
-            for i in sorted(temp_df["Games played"].unique(), reverse=True)
+        all_amounts_of_games_played = {
+            person.games_played for person in self.people_present
+        }
+
+        dic_amount_of_games_played_set_of_players = {
+            amount_of_games_played: set()
+            for amount_of_games_played in all_amounts_of_games_played
+        }
+
+        for player in random.sample(
+            list(self.people_present), len(self.people_present)
+        ):
+            dic_amount_of_games_played_set_of_players[player.games_played].add(player)
+
+        list_descending_priority = [
+            player
+            for i in sorted(
+                dic_amount_of_games_played_set_of_players.keys(), reverse=True
+            )
+            for player in dic_amount_of_games_played_set_of_players[i]
         ]
-        # we shuffle the players for each amount of games played
-        for df in dfs_per_games_played:
-            df = df.sample(frac=1)
-        # we reassemble the dataframes
-        temp_df = pd.concat(dfs_per_games_played)
-        # we remove the firs amount_non_playing players
-        temp_df = temp_df.iloc[amount_non_playing:]
+        self.people_playing = set(list_descending_priority[amount_non_playing:])
+
+        for player in self.people_playing:
+            player.games_played += 1
         ########################################################################
+
+        self.set_of_all_possible_teams = self.create_set_of_all_possible_teams()
         ######preference == none################################################
         # if preference is none, we create random games, trying not to recreate the same games
         if self.preference == None:
             pass
         if self.preference == "balanced":
-            # we create all possible teams
-            set_of_teams = create_set_of_all_possible_teams(
-                set(temp_df.index), players_per_team
-            )
+
             # we create the games
-            for i in range(self.amount_of_games):
-                if self.games != []:
-                    temp_df = temp_df.drop(self.games[-1].participants)
-                self.games.append(create_balanced_game(set_of_teams, amount_of_teams))
-        # we pick for players at random
+            for iter in range(self.num_iter):
+                for i in range(self.amount_of_games):
+                    people_left_to_play = self.people_playing - set().union(
+                        *{game.participants for game in self.games}
+                    )
+                    self.games.append(self.create_balanced_game(people_left_to_play))
+
+                if max([game.level_difference for game in self.games]) == 0:
+                    break
+                if (
+                    max([game.level_difference for game in self.games])
+                    <= self.level_gap_tol
+                ) and (iter > self.num_iter // 2):
+                    break
+                self.games = []
+
+            if self.games == []:
+                print("could not find a game, because the tolerance is too low")
+
         # ####preference == level#################################################
-        # # if preference is level, we sort the players by level and create games by level
-        # if self.preference == "Level":
+        # if preference is level, we sort the players by level and create games by level
+        if self.preference == "level":
+            # we find all the possible levels
+            set_all_levels_people_playing = {
+                player.level for player in self.people_playing
+            }
+            list_decreasing_levels = sorted(set_all_levels_people_playing, reverse=True)
+            # we sort the players by level
+            dic_level_players = {
+                level: set() for level in set_all_levels_people_playing
+            }
+            for player in self.people_playing:
+                dic_level_players[player.level].add(player)
 
-        #     possible_games = []
-        #     level_differences = []
-        #     for pair_1 in combinations(temp_df.index, 2):
-        #         for pair_2 in combinations(temp_df.drop(pair_1).index, 2):
-        #             sd
-        #     for df in dfs_per_level:
-        #         df = df.sample(frac=1)
-        #     # we reassemble the dataframes
-        #     temp_df = pd.concat(dfs_per_level)
-        #     # we split the players in groups of 4
-        #     for i in range(self.amount):
-        #         if self.games != []:
-        #             temp_df = temp_df.drop(self.games[-1].participants)
-        #         self.games.append(GameOfFour(temp_df, self.preference))
-        # ########################################################################
+            # we check if the amount of players in each level is a multiple of the amount of self.players_per_team * self.teams_per_game
+            # if not, we randomly add a player from one level down
+            for level in list_decreasing_levels:
+                while (
+                    len(dic_level_players[level])
+                    % (self.players_per_team * self.teams_per_game)
+                    != 0
+                ):
+                    random_player = random.sample(
+                        list(dic_level_players[level - 1]), 1
+                    )[0]
+                    dic_level_players[level].add(random_player)
+                    dic_level_players[level - 1].remove(random_player)
+            
 
-    def create_balanced_game(set_of_teams, amount_of_teams=2, balanced=True):
-        # function that creates <amount_of_teams> balanced teams of <players_per_team> players
-        # from a set of players
-        # if balanced is True, the function will try to minimize the level difference between the teams
-        # if balanced is False, the function will create random teams
+            for level, players in dic_level_players.items():
+                print(level, [player.name for player in players])
+            # we create the games in each level
+            list_levels_not_empty = [
+                level
+                for level in list_decreasing_levels
+                if dic_level_players[level] != set()
+            ]
+            for level in list_levels_not_empty:
+                people_left_to_play_in_level = dic_level_players[level]
+                print("people left to play in level at start:")
+                print([player.name for player in people_left_to_play_in_level])
+                for iter in range(self.num_iter):
+                    for i in range(
+                        len(people_left_to_play_in_level)
+                        // (self.players_per_team * self.teams_per_game)
+                    ):
+                        people_left_to_play_in_level = (
+                            people_left_to_play_in_level
+                            - set().union(*{game.participants for game in self.games})
+                        )
+                        print("people removed:")
+                        print([player.name for player in set().union(*{game.participants for game in self.games})])
+                        print("people left to play in level:")
+                        print([player.name for player in people_left_to_play_in_level])
+                        self.games.append(
+                            self.create_balanced_game(people_left_to_play_in_level)
+                        )
+
+                    if max([game.level_difference for game in self.games]) == 0:
+                        print("game players:")
+                        print([participant.name for participant in game.participants])
+                        break
+                    if (
+                        max([game.level_difference for game in self.games])
+                        <= self.level_gap_tol
+                    ) and (iter > self.num_iter // 2):
+                        print("game players:")
+                        print([participant.name for participant in game.participants])
+                        break
+                    self.games = []
+
+                if self.games == []:
+                    print("could not find a game, because the tolerance is too low")
+            ########################################################################
+
+    def create_balanced_game(self, people_left_to_play, balanced=True):
 
         # setting maximal number of iterations in each case
-        num_iter = 1000
         if balanced:
             level_diff = 0
             while level_diff < 3:
-                for i in range(num_iter):
+                for i in range(self.num_iter):
                     teams = []
-                    temp_set_of_teams = set_of_teams.copy()
+                    temp_set_of_teams = self.set_of_all_possible_teams.copy()
+                    # print([(player.name for player in team.players) for team in temp_set_of_teams])
+                    # print([player.name for player in people_left_to_play])
+                    temp_set_of_teams = {
+                        team
+                        for team in temp_set_of_teams
+                        if all(player in people_left_to_play for player in team.players)
+                    }
+                    # print(temp_set_of_teams)
                     set_of_chosen_teams = set()
-                    for team_iter in range(amount_of_teams):
+                    for team_iter in range(self.teams_per_game):
                         team = np.random.choice(list(temp_set_of_teams))
                         if (
                             set()
@@ -388,11 +489,14 @@ class GamesRound:
                         ):
                             set_of_chosen_teams.add(team)
                             temp_set_of_teams = temp_set_of_teams.difference({team})
-                    if len(set_of_chosen_teams) == amount_of_teams:
+                    if len(set_of_chosen_teams) == self.teams_per_game:
 
-                        game_of_four = GameOfFour(*set_of_chosen_teams)
+                        game_of_four = GameOfFour(
+                            *set_of_chosen_teams, preference=self.preference
+                        )
 
                         if game_of_four.level_difference <= level_diff:
+
                             return game_of_four
 
                 level_diff += 1
@@ -403,21 +507,53 @@ class GamesRound:
             list_of_teams = list(set_of_teams)
             np.random.shuffle(list_of_teams)
 
-            for i in range(num_iter):
-                possible_team_combination = combinations(list_of_teams, amount_of_teams)
+            for i in range(self.num_iter):
+                possible_team_combination = combinations(
+                    list_of_teams, self.teams_per_game
+                )
                 for team_combination in possible_team_combination:
                     if set().union(*set(possible_team_combination)) == set_of_teams:
                         break
-            return GameOfFour(*team_combination)
+            return GameOfFour(*team_combination, preference="None")
         return "could not find a game, because there are not enough players"
 
 
 # %%
-list_of_players = [Player(df_minimal_example.iloc[i]) for i in range(12)]
-round_of_games = GamesRound(list_of_players, amount_of_games=3, preference="balanced")
-for attr in ["amount_of_games", "preference", "people_present", "games", "not_playing"]:
+!!!!no error but only level 0 is done!!!!
+set_of_players = {Player(df_minimal_example.iloc[i]) for i in range(12)}
+round_of_games = GamesRound(
+    set_of_players, preference="level", num_iter=40, level_gap_tol=2
+)
+for attr in ["amount_of_games", "preference"]:
     print(attr + " : ", getattr(round_of_games, attr))
+print("not playing:", [player.name for player in round_of_games.not_playing])
+i = 1
+for game in round_of_games.games:
+    print("_______", "game", i, "_______")
+    print([team.players_name for team in game.teams])
+    for attr in ["preference", "level_difference"]:
+        print(attr + " : ", getattr(game, attr))
+    i += 1
 
+# %%
+!!!!ValueError: Sample larger than population or is negative!!!
+set_of_players = {Player(main_df.iloc[i]) for i in range(12)}
+round_of_games = GamesRound(
+    set_of_players, preference="level", level_gap_tol=2, num_iter=40
+)
+for attr in ["amount_of_games", "preference"]:
+    print(attr + " : ", getattr(round_of_games, attr))
+print("not playing:", [player.name for player in round_of_games.not_playing])
+i = 1
+for game in round_of_games.games:
+    print("_______", "game", i, "_______")
+    print([team.players_name for team in game.teams])
+    for attr in ["level_difference"]:
+        print(attr + " : ", getattr(game, attr))
+    i += 1
+# %%
+for player in set_of_players:
+    print(player.games_played)
 # %%
 ###########################################################################################
 #                                                                                         #
@@ -430,19 +566,26 @@ for attr in ["amount_of_games", "preference", "people_present", "games", "not_pl
 ###########################################################################################
 
 
-class SetOfRounds:
+class SessionOfRounds:
     def __init__(
         self,
-        list_of_players,
+        set_of_players,
         amount_of_rounds=1,
-        games_per_round_each_round=[1],
-        players_per_team_each_round=[2],
+        games_per_round_each_round=None,
+        players_per_team_each_round=None,
         preferences=[None],
+        level_gap_tol=0.5,
+        num_iter=40,
     ):
         self.amount_of_rounds = amount_of_rounds
+        self.games_per_round_each_round = games_per_round_each_round
+        self.players_per_team_each_round = players_per_team_each_round
+        self.preferences = preferences
+        self.level_gap_tol = level_gap_tol
+        self.num_iter = num_iter
 
-        self.players = list_of_players
-        self.players_names = {player.name for player in list_of_players}
+        self.players = set_of_players
+        self.players_name = {player.name for player in set_of_players}
         self.rounds = []
 
         # reformatting preferences to the amount of preferences wanted
@@ -458,7 +601,7 @@ class SetOfRounds:
 
         # reformatting games_per_round_at_each_round to the amount of rounds wanted
         if games_per_round_each_round is None:
-            maximal_games_per_round = len(list_of_players) // 4
+            maximal_games_per_round = len(set_of_players) // 4
             games_per_round_each_round = [maximal_games_per_round] * amount_of_rounds
         elif isinstance(games_per_round_each_round, int):
             games_per_round_each_round = [games_per_round_each_round] * amount_of_rounds
@@ -471,7 +614,10 @@ class SetOfRounds:
         self.games_per_round_each_round = games_per_round_each_round
 
         # reformatting players_per_team_each_round to the amount of rounds wanted
-        if isinstance(players_per_team_each_round, int):
+        if players_per_team_each_round is None:
+            players_per_team_each_round = [2] * self.amount_of_rounds
+
+        elif isinstance(players_per_team_each_round, int):
             players_per_team_each_round = [
                 players_per_team_each_round
             ] * amount_of_rounds
@@ -485,42 +631,50 @@ class SetOfRounds:
 
         self.create_rounds()
 
-    def create_rounds(round_of_games):
+    def create_rounds(self):
         # function that creates a list of rounds
         rounds = []
-        for i in range(round_of_games.amount_of_rounds):
+        for i in range(self.amount_of_rounds):
             rounds.append(
                 GamesRound(
-                    round_of_games.players,
-                    previous_games_rounds_anti_chron=rounds,
-                    amount_of_games=round_of_games.games_per_round_each_round[i],
-                    players_per_team=round_of_games.players_per_team_each_round[i],
-                    preference=round_of_games.preferences[i],
+                    set_of_players=self.players,
+                    amount_of_games=self.games_per_round_each_round[i],
+                    players_per_team=self.players_per_team_each_round[i],
+                    preference=self.preferences[i],
+                    level_gap_tol=self.level_gap_tol,
+                    num_iter=self.num_iter,
                 )
             )
-        round_of_games.rounds = rounds
+        self.rounds = rounds
 
 
 # %%
-list_of_players = [Player(df_minimal_example.iloc[i]) for i in range(12)]
-round_of_games = SetOfRounds(
-    list_of_players,
-    amount_of_rounds=3,
-    games_per_round_each_round=[3, 3, 2],
-    players_per_team_each_round=[3, 3, 2],
-    preferences=["Level", "Level", "Level"],
+set_of_players = {Player(main_df.iloc[i]) for i in range(7)}
+session_of_rounds = SessionOfRounds(
+    set_of_players,
+    amount_of_rounds=5,
+    preferences="balanced",
+    level_gap_tol=4,
+    num_iter=40,
 )
-for round in round_of_games.rounds:
-    for attr in [
-        "amount_of_games",
-        "preference",
-        "people_present",
-        "games",
-        "not_playing",
-    ]:
-        print(attr + " : ", getattr(round, attr))
-
-
+i = 1
+for round in session_of_rounds.rounds:
+    print("")
+    print("_______", "round", i, "_______")
+    print("preference : ", getattr(round, "preference"))
+    print("not playing:", [player.name for player in round.not_playing])
+    j = 1
+    for game in round.games:
+        print("-------", "game", j, "-------")
+        print([team.players_name for team in game.teams])
+        for attr in ["level_difference"]:
+            print(attr + " : ", getattr(game, attr))
+        j += 1
+    i += 1
+print("")
+print("##########STATS END OF SESSION##########")
+for player in set_of_players:
+    print(player.name, "played", player.games_played, "games")
 # %%
 ################################################################################
 ################################################################################
@@ -544,10 +698,6 @@ for round in round_of_games.rounds:
 ################################################################################
 ################################################################################
 # %%
-def create_set_of_all_possible_teams(set_of_players, players_per_team=2):
-    # function that creates all possible teams of <players_per_team> players from a set of players
-    return {TeamOfTwo(*team) for team in combinations(set_of_players, players_per_team)}
-
 
 # %%
 
@@ -784,7 +934,7 @@ true_dtypes = {
     "Surname": str,
     "Name": str,
     "Date of birth": datetime.datetime,
-    "Gender": int,
+    "Gender": str,
     "Email address": str,
     "Postal code": int,
     "Phone number": str,
@@ -806,6 +956,8 @@ for col in true_dtypes.keys():
 main_df["Category"] = main_df["Level"]
 # setting default Happiness to 0
 main_df["Happiness"] = 0
+# setting default games played to 0
+main_df["Games played"] = 0
 # %%
 example_df = main_df.iloc[3:18]
 short_example_df = main_df.loc[["VictorDa", "David", "Bram", "Anyel", "Nolan"]]
