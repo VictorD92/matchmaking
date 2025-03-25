@@ -204,7 +204,10 @@ for data_frame in [main_df, level_df]:
 
     data_frame.set_index("PrénomNom", inplace=True)
 
+main_fd = main_df.loc[level_df.index]
+
 main_df["Niveau"] = level_df["Niveau moyenné"]
+main_df.dropna(axis=0, subset =["Niveau"], inplace=True)
 main_df.drop(
     "Le montant de la cotisation semestrielle pour la saison 2024-2025 étant en discussion, il faudra la payer ultérieurement. Le GRNA se réserve le droit d'empêcher l'accès aux entraînement à celles et ceux qui ne règleront pas la cotisation quand ce sera demandé.",
     axis=1,
@@ -245,6 +248,8 @@ translated_shortened_columns = {
 }
 
 
+
+
 main_df.rename(columns=translated_shortened_columns, inplace=True)
 main_df.index.name = "NameSurname"
 
@@ -277,9 +282,10 @@ main_df["Category"] = main_df["Level"]
 main_df["Happiness"] = 0
 # setting default games played to 0
 main_df["Games played"] = 0
+
 # %%
 example_df = main_df.iloc[3:18]
-short_example_df = main_df.loc[["VictorDa", "David", "Bram", "Anyel", "Nolan"]]
+short_example_df = main_df.loc[["VictorDa", "David", "Enzo", "Anyel", "Nolan"]]
 
 
 # %%
@@ -839,4 +845,33 @@ for player in set_of_players:
 ################################################################################
 ################################################################################
 ################################################################################
+# %%
+df_25_03_25 = main_df.loc[[
+    "VictorDa",
+    "Linda",
+    "Marc",
+    "Nathan",
+    "Luciano",
+    "Luca",
+    "Manon",
+    "Felix",
+    "Gabriel",
+    "Leo",
+    "Colin",
+    "David",
+    "Aliénor",
+    "VictorDi"
+]]
+# %%
+df_25_03_25.sort_values("Level", inplace=True,ascending=False)
+team_DLMLM = {Player(df_25_03_25.loc[name]) for name in ["Leo","David","Marc","Luca","Manon"]}
+
+team_FLAVN = {Player(df_25_03_25.loc[name]) for name in ["VictorDi","Nathan","Felix","Luciano","Aliénor"]}
+team_LCGV = {Player(df_25_03_25.loc[name]) for name in ["VictorDa","Linda","Colin","Gabriel"]}
+
+team_DLMLM_level = np.mean([player.level for player in team_DLMLM])
+team_FLAVN_level = np.mean([player.level for player in team_FLAVN])
+team_LCGV_level = np.mean([player.level for player in team_LCGV])
+for level in [team_DLMLM_level,team_FLAVN_level,team_LCGV_level]:
+    print(level)
 # %%
