@@ -204,7 +204,7 @@ for data_frame in [main_df, level_df]:
 
     data_frame.set_index("PrénomNom", inplace=True)
 
-main_df["Niveau"] = level_df["Niveau"]
+main_df["Niveau"] = level_df["Niveau moyenné"]
 main_df.drop(
     "Le montant de la cotisation semestrielle pour la saison 2024-2025 étant en discussion, il faudra la payer ultérieurement. Le GRNA se réserve le droit d'empêcher l'accès aux entraînement à celles et ceux qui ne règleront pas la cotisation quand ce sera demandé.",
     axis=1,
