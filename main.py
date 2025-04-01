@@ -506,6 +506,7 @@ class GamesRound:
     def create_games(self, seed=None):
         import random
 
+
         if seed is not None:
             np.random.seed(seed)
             random.seed(seed)
@@ -799,7 +800,58 @@ class SessionOfRounds:
                 )
             )
         self.rounds = rounds
+    def print_all_results(self):
+        import pyperclip
+        # Collect all printed information
+        output = []
+        output.append("all players: " + str(self.players_name))
+        i = 1
+        for round in self.rounds:
+            output.append("\n")
+            output.append(f"{i} "*8 + "ROUND " + f"{i} "*8)
+            output.append("preference : " + str(getattr(round, "preference")))
+            output.append("not playing: " + str([player.name for player in round.not_playing]))
+            j = 1
+            for game in round.games:
+                output.append(f"------- game {j} -------")
+                output.append(str([team.players_name for team in game.teams]))
+                if game.preference == "balanced":
+                    output.append("level_difference : " + str(np.round(getattr(game, "level_difference"), 2)))
+                if game.preference == "level":
+                    for player in game.participants:
+                        output.append(f"name : {player.name}, level : {player.level}")
+                j += 1
+            output.append(f"{i} "*8 + "ROUND END " + f"{i} "*8)
+            output.append("\n\n\n")
+            i += 1
 
+        output.append("\n##########AMOUNT OF GAMES PLAYED##########")
+        for player in self.players:
+            output.append(f"{player.name} played {player.games_played} games")
+        
+        # Find and display players who played at least twice with each other and record the rounds
+        player_pairs = {}
+        pair_rounds = {}
+        for round_index, round in enumerate(self.rounds, start=1):
+            for game in round.games:
+                for team in game.teams:
+                    for player_a, player_b in combinations(team.players, 2):
+                        pair = frozenset([player_a.name, player_b.name])
+                        player_pairs[pair] = player_pairs.get(pair, 0) + 1
+                        if pair not in pair_rounds:
+                            pair_rounds[pair] = []
+                        pair_rounds[pair].append(round_index)
+
+        output.append("\n##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE##########")
+        for pair, count in player_pairs.items():
+            if count >= 2:
+                rounds = ", ".join(map(str, pair_rounds[pair]))
+                output.append(f"{', '.join(pair)} played together {count} times in rounds: {rounds}")
+
+        # Copy the output to the clipboard
+        pyperclip.copy("\n".join(output))
+        print("\n".join(output))
+        print("\n\n\n\nALL RESULTS HAVE BEEN COPIED TO THE CLIPBOARD.")
 
 # %%
 if __name__ == "__main__":
@@ -812,28 +864,7 @@ if __name__ == "__main__":
         num_iter=40,
         seed=0
     )
-    print("all players:", session_of_rounds.players_name)
+#%%
+    session_of_rounds.print_all_results()
 
-
-    i = 1
-    for round in session_of_rounds.rounds:
-        print("")
-        print("_______", "round", i, "_______")
-        print("preference : ", getattr(round, "preference"))
-        print("not playing:", [player.name for player in round.not_playing])
-        j = 1
-        for game in round.games:
-            print("-------", "game", j, "-------")
-            print([team.players_name for team in game.teams])
-            if game.preference == "balanced":
-                print("level_difference : ", getattr(game, "level_difference"))
-            if game.preference == "level":
-                for player in game.participants:
-                    print("name : ", player.name, "level : ", player.level)
-            j += 1
-        i += 1
-    print("")
-    print("##########STATS END OF SESSION##########")
-    for player in list_of_players:
-        print(player.name, "played", player.games_played, "games")
-
+# %%

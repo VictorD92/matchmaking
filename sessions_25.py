@@ -150,33 +150,8 @@ session_of_rounds = main.SessionOfRounds(
     seed=26,
 )
 #%%
-print("all players:", session_of_rounds.players_name)
-i = 1
-for round in session_of_rounds.rounds:
-    print("")
-    print(i,i,i,i,i,i,i,i,"ROUND",i,i,i,i,i,i,i,i,i,)
-    print("preference : ", getattr(round, "preference"))
-    print("not playing:", [player.name for player in round.not_playing])
-    j = 1
-    for game in round.games:
-        print("-------", "game", j, "-------")
-        print([team.players_name for team in game.teams])
-        if game.preference == "balanced":
-            print("level_difference : ", np.round(getattr(game, "level_difference"),2))
-        if game.preference == "level":
-            for player in game.participants:
-                print("name : ", player.name, "level : ", player.level)
-        j += 1
-    print(i,i,i,i,i,i,i,i,i,"ROUND END",i,i,i,i,i,i,i,i,i,)
-    print("\n\n\n")
-    i += 1
-    
-print("")
-print("##########STATS END OF SESSION##########")
-for player in list_of_players:
-    print(player.name, "played", player.games_played, "games")
-
-#%% output:
+session_of_rounds.print_all_results()
+# output:
 # all players: ['VictorDa', 'Florina', 'Nathan', 'Luca', 'Manon', 'Felix', 'Gabriel', 'Leo', 'Dominik', 'Colin', 'Anyel', 'Aliénor', 'Lucas', 'plus_1']
 
 # 1 1 1 1 1 1 1 1 ROUND 1 1 1 1 1 1 1 1 1
@@ -292,3 +267,153 @@ for player in list_of_players:
 # Lucas played 4 games
 # plus_1 played 5 games
 # %%
+#%%
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+##############                                                    ##############
+##############  #####  #    #      #####   #####   #####  ####### ##############
+############## #     # #    #     #     # #     # #     # #       ##############
+############## #     # #######        ##  #     #     ##  ######  ##############
+############## #     #      #       ##    #     #   ##          # ##############
+##############  #####       #  ## #######  #####  ####### ######  ##############
+##############                                                    ##############
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+#%%
+################################################################################
+################################################################################
+################################################################################
+################################                ################################
+################################  #####    ##   ################################
+################################ #     #  ####  ################################
+################################ #     #   ##   ################################
+################################ #     #   ##   ################################
+################################  #####   ##### ################################
+################################                ################################
+################################################################################
+################################################################################
+################################################################################
+#%%
+# %%
+df = main.main_df.loc[[
+    "VictorDa",
+    "David",
+    "Aliénor",
+    "Manon",
+    "Felix",
+    "VictorDi",
+    "Nathan",
+    "Colin",
+    "Linda",
+    "Dominik",
+    "Sarah",
+    "Nolan",
+    "Leo",
+    "Enzo",
+]].copy()
+#%%
+
+list_of_players = [main.Player(df.loc[name]) for name in df.index]
+session_of_rounds = main.SessionOfRounds(
+    list_of_players,
+    amount_of_rounds=3,
+    preferences=["balanced", "balanced", "level"],
+    level_gap_tol=1,
+    num_iter=40,
+    seed=1,
+)
+#%%
+session_of_rounds.print_all_results()
+# all players: ['VictorDa', 'David', 'Aliénor', 'Manon', 'Felix', 'VictorDi', 'Nathan', 'Colin', 'Linda', 'Dominik', 'Sarah', 'Nolan', 'Leo', 'Enzo']
+
+
+# 1 1 1 1 1 1 1 1 ROUND1 1 1 1 1 1 1 1 
+# preference : balanced
+# not playing: ['David', 'Manon']
+# ------- game 1 -------
+# [{'Colin', 'Leo'}, {'Linda', 'Nathan'}]
+# level_difference : 0.0
+# ------- game 2 -------
+# [{'Enzo', 'Sarah'}, {'Aliénor', 'VictorDi'}]
+# level_difference : 0.0
+# ------- game 3 -------
+# [{'Dominik', 'Felix'}, {'Nolan', 'VictorDa'}]
+# level_difference : 0.05
+# 1 1 1 1 1 1 1 1 ROUND END 1 1 1 1 1 1 1 1 
+
+
+
+
+
+
+# 2 2 2 2 2 2 2 2 ROUND2 2 2 2 2 2 2 2 
+# preference : balanced
+# not playing: ['Sarah', 'Enzo']
+# ------- game 1 -------
+# [{'Nolan', 'Leo'}, {'VictorDa', 'Nathan'}]
+# level_difference : 0.0
+# ------- game 2 -------
+# [{'Manon', 'VictorDi'}, {'Aliénor', 'David'}]
+# level_difference : 0.0
+# ------- game 3 -------
+# [{'Dominik', 'Colin'}, {'Felix', 'Linda'}]
+# level_difference : 0.35
+# 2 2 2 2 2 2 2 2 ROUND END 2 2 2 2 2 2 2 2 
+
+
+
+
+
+
+# 3 3 3 3 3 3 3 3 ROUND3 3 3 3 3 3 3 3 
+# preference : level
+# not playing: ['Aliénor', 'Colin']
+# ------- game 1 -------
+# [{'Dominik', 'Enzo'}, {'Leo', 'VictorDi'}]
+# name : Dominik, level : 3.7
+# name : Enzo, level : 4.0
+# name : VictorDi, level : 4.0
+# name : Leo, level : 4.0
+# ------- game 2 -------
+# [{'VictorDa', 'Linda'}, {'David', 'Nathan'}]
+# name : Nathan, level : 3.0
+# name : David, level : 3.3
+# name : Linda, level : 3.0
+# name : VictorDa, level : 3.3
+# ------- game 3 -------
+# [{'Felix', 'Sarah'}, {'Nolan', 'Manon'}]
+# name : Manon, level : 1.0
+# name : Nolan, level : 2.3
+# name : Sarah, level : 1.7
+# name : Felix, level : 2.0
+# 3 3 3 3 3 3 3 3 ROUND END 3 3 3 3 3 3 3 3
+
+
+# ##########AMOUNT OF GAMES PLAYED##########
+# VictorDa played 3 games
+# David played 2 games
+# Aliénor played 2 games
+# Manon played 2 games
+# Felix played 3 games
+# VictorDi played 3 games
+# Nathan played 3 games
+# Colin played 2 games
+# Linda played 3 games
+# Dominik played 3 games
+# Sarah played 2 games
+# Nolan played 3 games
+# Leo played 3 games
+# Enzo played 2 games
+
+# ##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE######
+# èh bah personne
