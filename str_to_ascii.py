@@ -79,12 +79,10 @@ def char_to_list(my_char):
         return ["######", "    ##", "  ##  ", "##    ", "######"]
 
     if my_char == " ":
-        return ["  ", "  ", "  ", "  ", "  "]
+        return ["    ", "    ", "    ", "    ", "    "]
 
     if my_char == "!":
         return ["##", "##", "##", "  ", "##"]
-    if my_char == "?":
-        return [" ### ", "#  ##", "  ## ", "  #  ", " ##  "]
 
     if my_char == ".":
         return ["  ", "  ", "  ", "  ", "##"]
@@ -93,6 +91,14 @@ def char_to_list(my_char):
 
     if my_char == "-":
         return ["     ", "     ", "#####", "     ", "     "]
+    if my_char == "#":
+        return ["  #  #", " #####", " #  # ", "##### ", "#  #  "]
+    if my_char == ">":
+        return ["#    ", "  #  ", "    #", "  #  ", "#    "]
+    if my_char == "<":
+        return ["    #", "  #  ", "#    ", "  #  ", "    #"]
+    if my_char == "?":
+        return ["######", "#    #", "   #  ", "      ", "  #   "]
     if my_char == "0":
         return [" #### ", "#   ##", "#  # #", "# #  #", " #### "]
     if my_char == "1":
@@ -117,10 +123,6 @@ def char_to_list(my_char):
         return ["   ##", "  #  ", " #   ", "  #  ", "   ##"]
     if my_char == ")":
         return ["##   ", "  #  ", "   # ", "  #  ", "##   "]
-    if my_char == "[":
-        return [" ###", " #  ", " #  ", " #  ", " ###"]
-    if my_char == "]":
-        return ["### ", "  # ", "  # ", "  # ", "### "]
 
 
 # %% conversion d'un texte en gros commentaire pour script python

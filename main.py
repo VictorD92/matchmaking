@@ -327,7 +327,6 @@ class Player:
         self.name = series.name
 
 
-
 # %% Example usage of the Player class
 if __name__ == "__main__":
     player = Player(df_minimal_example.iloc[0])
@@ -436,8 +435,12 @@ class GameOfFour:
 if __name__ == "__main__":
     example_one_game_df = df_minimal_example.iloc[:4]
     game_of_four = GameOfFour(
-        TeamOfTwo(Player(example_one_game_df.iloc[0]), Player(example_one_game_df.iloc[1])),
-        TeamOfTwo(Player(example_one_game_df.iloc[2]), Player(example_one_game_df.iloc[3])),
+        TeamOfTwo(
+            Player(example_one_game_df.iloc[0]), Player(example_one_game_df.iloc[1])
+        ),
+        TeamOfTwo(
+            Player(example_one_game_df.iloc[2]), Player(example_one_game_df.iloc[3])
+        ),
         preference="Level",
     )
     # Print the attributes of the game
@@ -490,7 +493,9 @@ class GamesRound:
         self.games = []
         self.create_games(seed=seed)
 
-        self.not_playing = [person for person in list_of_players if person not in self.people_playing]
+        self.not_playing = [
+            person for person in list_of_players if person not in self.people_playing
+        ]
 
     # Modify the create_set_of_all_possible_teams method to include a seed parameter
     def create_set_of_all_possible_teams(self, seed=None):
@@ -505,7 +510,6 @@ class GamesRound:
     # Modify the create_games method to include a seed parameter
     def create_games(self, seed=None):
         import random
-
 
         if seed is not None:
             np.random.seed(seed)
@@ -527,7 +531,9 @@ class GamesRound:
             for amount_of_games_played in all_amounts_of_games_played
         }
 
-        for player in random.sample(list(self.people_present), len(self.people_present)):
+        for player in random.sample(
+            list(self.people_present), len(self.people_present)
+        ):
             dic_amount_of_games_played_list_of_players[player.games_played].add(player)
 
         list_descending_priority = [
@@ -543,7 +549,9 @@ class GamesRound:
             player.games_played += 1
         ########################################################################
 
-        self.set_of_all_possible_teams = self.create_set_of_all_possible_teams(seed=seed)
+        self.set_of_all_possible_teams = self.create_set_of_all_possible_teams(
+            seed=seed
+        )
         ######preference == none################################################
         # if preference is none, we create random games, trying not to recreate the same games
         if self.preference == None:
@@ -553,8 +561,12 @@ class GamesRound:
             # we create the games
             for iter in range(self.num_iter):
                 for i in range(self.amount_of_games):
-                    people_left_to_play = [people for people in self.people_playing if people not in set().union(
-                        *{game.participants for game in self.games})]
+                    people_left_to_play = [
+                        people
+                        for people in self.people_playing
+                        if people
+                        not in set().union(*{game.participants for game in self.games})
+                    ]
                     self.games.append(
                         self.create_balanced_game(people_left_to_play, seed=seed)
                     )
@@ -694,7 +706,9 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    list_of_players = [Player(main_df.loc[name]) for name in ["Dominik", "Leo", "Anyel","Florina"]]
+    list_of_players = [
+        Player(main_df.loc[name]) for name in ["Dominik", "Leo", "Anyel", "Florina"]
+    ]
     round_of_games = GamesRound(
         list_of_players, preference="level", level_gap_tol=2, num_iter=40, seed=0
     )
@@ -774,7 +788,9 @@ class SessionOfRounds:
             players_per_team_each_round = [2] * self.amount_of_rounds
 
         elif isinstance(players_per_team_each_round, int):
-            players_per_team_each_round = [players_per_team_each_round] * amount_of_rounds
+            players_per_team_each_round = [
+                players_per_team_each_round
+            ] * amount_of_rounds
         elif len(players_per_team_each_round) < amount_of_rounds:
             players_per_team_each_round = players_per_team_each_round + [2] * (
                 amount_of_rounds - len(players_per_team_each_round)
@@ -800,35 +816,42 @@ class SessionOfRounds:
                 )
             )
         self.rounds = rounds
+
     def print_all_results(self):
         import pyperclip
+
         # Collect all printed information
         output = []
         output.append("all players: " + str(self.players_name))
         i = 1
         for round in self.rounds:
             output.append("\n")
-            output.append(f"{i} "*8 + "ROUND " + f"{i} "*8)
+            output.append(f"{i} " * 8 + "ROUND " + f"{i} " * 8)
             output.append("preference : " + str(getattr(round, "preference")))
-            output.append("not playing: " + str([player.name for player in round.not_playing]))
+            output.append(
+                "not playing: " + str([player.name for player in round.not_playing])
+            )
             j = 1
             for game in round.games:
                 output.append(f"------- game {j} -------")
                 output.append(str([team.players_name for team in game.teams]))
                 if game.preference == "balanced":
-                    output.append("level_difference : " + str(np.round(getattr(game, "level_difference"), 2)))
+                    output.append(
+                        "level_difference : "
+                        + str(np.round(getattr(game, "level_difference"), 2))
+                    )
                 if game.preference == "level":
                     for player in game.participants:
                         output.append(f"name : {player.name}, level : {player.level}")
                 j += 1
-            output.append(f"{i} "*8 + "ROUND END " + f"{i} "*8)
+            output.append(f"{i} " * 8 + "ROUND END " + f"{i} " * 8)
             output.append("\n\n\n")
             i += 1
 
-        output.append("\n##########AMOUNT OF GAMES PLAYED##########")
+        output.append("\n#####AMOUNT OF GAMES PLAYED#####")
         for player in self.players:
             output.append(f"{player.name} played {player.games_played} games")
-        
+
         # Find and display players who played at least twice with each other and record the rounds
         player_pairs = {}
         pair_rounds = {}
@@ -842,16 +865,21 @@ class SessionOfRounds:
                             pair_rounds[pair] = []
                         pair_rounds[pair].append(round_index)
 
-        output.append("\n##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE##########")
+        output.append(
+            "\n##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE##########"
+        )
         for pair, count in player_pairs.items():
             if count >= 2:
                 rounds = ", ".join(map(str, pair_rounds[pair]))
-                output.append(f"{', '.join(pair)} played together {count} times in rounds: {rounds}")
+                output.append(
+                    f"{', '.join(pair)} played together {count} times in rounds: {rounds}"
+                )
 
         # Copy the output to the clipboard
         pyperclip.copy("\n".join(output))
         print("\n".join(output))
         print("\n\n\n\nALL RESULTS HAVE BEEN COPIED TO THE CLIPBOARD.")
+
 
 # %%
 if __name__ == "__main__":
@@ -862,9 +890,9 @@ if __name__ == "__main__":
         preferences=["balanced", "balanced", "level", "level"],
         level_gap_tol=1,
         num_iter=40,
-        seed=0
+        seed=0,
     )
-#%%
+    # %%
     session_of_rounds.print_all_results()
 
 # %%
