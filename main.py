@@ -139,6 +139,7 @@ df_minimal_example = pd.DataFrame(
             3,
             2,
         ],
+        "Noisy level": [0] * 26,
         "Gender": ["Female", "Male"] * 13,
         "Games played": [0] * 26,
         "Happiness": [0] * 26,
@@ -147,7 +148,7 @@ df_minimal_example = pd.DataFrame(
     {
         "Name": str,
         "Surname": str,
-        "Level": int,
+        "Level": float,
         "Gender": str,
     }
 )
@@ -279,6 +280,9 @@ main_df["Happiness"] = 0
 # setting default games played to 0
 main_df["Games played"] = 0
 
+# setting default Noisy level to 0
+main_df["Noisy level"] = 0
+
 # %%
 example_df = main_df.iloc[3:18]
 short_example_df = main_df.loc[["VictorDa", "David", "Enzo", "Anyel", "Nolan"]]
@@ -318,6 +322,13 @@ short_example_df = main_df.loc[["VictorDa", "David", "Enzo", "Anyel", "Nolan"]]
 ################################################################################
 class Player:
     def __init__(self, series):
+        """
+        creating Player class from series. The Series should contain at least the following columns:
+        - Level : float. The level of the player
+        - Gender : str. The gender of the player (currently "Male" and "Female")
+        - Hapiness: float. The happiness of the player (normally at 0)
+        - Games played: int. The number of games played by the player (normally at 0)
+        """
         # Initialize the Player object with a pandas Series
         self.series = series
         # Set attributes for each key in the series
@@ -325,6 +336,12 @@ class Player:
             setattr(self, re.sub(" ", "_", key.lower()), series[key])
         # Set the name attribute
         self.name = series.name
+        # Sets a "noisy level" to randomize a bit the level of the player. Especially useful for games by level
+        # the initial noisy level is set to the level of the player, and will change depending on what type of games the player will engage in
+        self.noisy_level = series["Level"]
+        # we also created a rounded noisy level, to avoid too many categories of levels
+        # default is the level of the player
+        self.rounded_noisy_level = series["Level"]
 
 
 # %% Example usage of the Player class
@@ -428,7 +445,9 @@ class GameOfFour:
         self.teams = set([team_A, team_B])
         # Store the participants of the game
         self.participants = frozenset(self.team_A.players.union(self.team_B.players))
-        self.level_difference = abs(self.team_A.mean_level - self.team_B.mean_level)
+        self.level_difference = np.round(
+            abs(self.team_A.mean_level - self.team_B.mean_level), 2
+        )
 
 
 # %% Example usage of the GameOfFour class
@@ -554,9 +573,14 @@ class GamesRound:
         )
         ######preference == none################################################
         # if preference is none, we create random games, trying not to recreate the same games
+        if isinstance(self.preference, dict):
+            preference_type = self.preference.get("type")
+        else:
+            preference_type = self.preference
         if self.preference == None:
             pass
-        if self.preference == "balanced":
+
+        if preference_type == "balanced":
 
             # we create the games
             for iter in range(self.num_iter):
@@ -585,9 +609,13 @@ class GamesRound:
 
             # ####preference == level#################################################
             # if preference is level, we sort the players by level and create games by level
-        if self.preference == "level":
+        if preference_type == "level":
             # we find all the possible levels
-            self.create_games_by_level(seed=seed)
+            if isinstance(self.preference, dict):
+                kwargs = self.preference.get("kwargs")
+            else:
+                kwargs = {}
+            self.create_games_by_level(seed=seed, **kwargs)
             ########################################################################
 
     # Modify the create_balanced_game method to include a seed parameter
@@ -658,13 +686,44 @@ class GamesRound:
         return "could not find a game, because there are not enough players"
 
     # Modify the create_games_by_level method to include a seed parameter
-    def create_games_by_level(self, seed=None):
+    def create_games_by_level(self, seed=None, randomize=True):
         if seed is not None:
             np.random.seed(seed)
+
+        # we randomize a bit the level of the players, to avoid having the same players in the same level
+        # we first find the minimal and maximal levels of the players
+        min_level = min([player.level for player in self.people_playing])
+        max_level = max([player.level for player in self.people_playing])
+        level_gap = max_level - min_level
+        if randomize:
+            # we add a random number with value uniformly distributed, up to 1/2 * level_gap if the preceeding noisy level was below the level of the player,
+            # and up to -1/2* level_gap if the preceeding noisy level was above the level of the player
+
+            for player in self.people_playing:
+                bias = 1 if player.level > player.noisy_level else -1
+                player.noisy_level = player.level + bias * np.random.uniform(
+                    0, level_gap / 2
+                )
+
+        else:
+            for player in self.people_playing:
+                player.noisy_level = player.level
         # we first sort the players by level
-        dic_level_players = {level: [] for level in self.df["Level"].unique()}
+
+        # finding all the possible levels, rounded up to 1/4 of the level gap
+        levels = []
         for player in self.people_playing:
-            dic_level_players[player.level].append(player)
+            rounded_noisy_level = player.noisy_level - player.noisy_level % (
+                level_gap / 8
+            )
+            player.rounded_noisy_level = rounded_noisy_level
+            if rounded_noisy_level not in levels:
+                levels.append(rounded_noisy_level)
+        levels = sorted(levels, reverse=True)
+
+        dic_level_players = {level: [] for level in levels}
+        for player in self.people_playing:
+            dic_level_players[player.rounded_noisy_level].append(player)
         # we randomize the players in each level
         for level in dic_level_players.keys():
             np.random.shuffle(dic_level_players[level])
@@ -691,7 +750,11 @@ class GamesRound:
 if __name__ == "__main__":
     list_of_players = [Player(df_minimal_example.iloc[i]) for i in range(19)]
     round_of_games = GamesRound(
-        list_of_players, preference="level", num_iter=40, level_gap_tol=2, seed=0
+        list_of_players,
+        preference={"type": "level", "kwargs": {"randomize": False}},
+        num_iter=40,
+        level_gap_tol=2,
+        seed=0,
     )
     for attr in ["amount_of_games", "preference"]:
         print(attr + " : ", getattr(round_of_games, attr))
@@ -706,9 +769,7 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    list_of_players = [
-        Player(main_df.loc[name]) for name in ["Dominik", "Leo", "Anyel", "Florina"]
-    ]
+    list_of_players = [Player(main_df.loc[name]) for name in main_df.iloc[10:22].index]
     round_of_games = GamesRound(
         list_of_players, preference="level", level_gap_tol=2, num_iter=40, seed=0
     )
@@ -882,17 +943,27 @@ class SessionOfRounds:
 
 
 # %%
+# choose randomly 12 numbers between 0 and 31, without repetition
+import random
+
+numbers = random.sample(range(0, 31), 12)
+good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
 if __name__ == "__main__":
-    list_of_players = [Player(main_df.iloc[i]) for i in range(15)]
+    list_of_players = [
+        Player(main_df.loc[name]) for name in main_df.iloc[good_numbers].index
+    ]
     session_of_rounds = SessionOfRounds(
         list_of_players,
-        amount_of_rounds=4,
-        preferences=["balanced", "balanced", "level", "level"],
+        amount_of_rounds=8,
+        preferences=["level"] * 8,
         level_gap_tol=1,
         num_iter=40,
-        seed=0,
+        # seed=0,
     )
     # %%
     session_of_rounds.print_all_results()
+
+# %%
+
 
 # %%
