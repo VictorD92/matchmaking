@@ -1043,18 +1043,18 @@ class SessionOfRounds:
 # choose randomly 12 numbers between 0 and 31, without repetition
 import random
 
-numbers = random.sample(range(0, 31), 12)
-# good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
+# numbers = random.sample(range(0, 31), 12)
+good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
 if __name__ == "__main__":
     list_of_players = [
-        Player(main_df.loc[name]) for name in main_df.iloc[numbers].index
+        Player(main_df.loc[name]) for name in main_df.iloc[good_numbers].index
     ]
     session_of_rounds = SessionOfRounds(
         list_of_players,
-        amount_of_rounds=5,
-        preferences=["balanced"] * 3 + ["level"] * 2,
+        amount_of_rounds=6,
+        preferences=["balanced"] * 3 + ["level"] * 3,
         level_gap_tol=1.5,
-        num_iter=100,
+        num_iter=50,
         # seed=0,
     )
     # %%
