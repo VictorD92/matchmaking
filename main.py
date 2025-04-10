@@ -167,10 +167,10 @@ df_minimal_example["Level"].unique()
 ################################################################################
 ###############                                                 ################
 ############### ####### #     # #######         #####   ####### ################
-###############    #    ##   ## #     #         #    #  #       ################
-###############    #    #  #  # #######         #     # #####   ################
-###############    #    #     # #               #    #  #       ################
-############### ####### #     # #       ##      #####   #       ################
+###############    #    ##   ## #     #         #        #   #  ################
+###############    #    #  #  # #######         #     #    #   ################
+###############    #    #     # #               #        #   # ################
+############### ####### #     # #       ##      #####   #     ################
 ###############                                                 ################
 ################################################################################
 ################################################################################
@@ -326,7 +326,7 @@ class Player:
         creating Player class from series. The Series should contain at least the following columns:
         - Level : float. The level of the player
         - Gender : str. The gender of the player (currently "Male" and "Female")
-        - Hapiness: float. The happiness of the player (normally at 0)
+        - Happiness: float. The happiness of the player (normally at 0)
         - Games played: int. The number of games played by the player (normally at 0)
         """
         # Initialize the Player object with a pandas Series
@@ -342,6 +342,28 @@ class Player:
         # we also created a rounded noisy level, to avoid too many categories of levels
         # default is the level of the player
         self.rounded_noisy_level = series["Level"]
+
+    def update_happiness_balanced(self, game_mean_level, session_median):
+        """Update happiness for balanced games"""
+        if self.level < session_median:
+            # For lower level players, happiness increases with level difference
+            level_diff = max(0, game_mean_level - self.level)
+            self.happiness += np.sign(
+                level_diff
+            )  # Adjust happiness based on the sign of level_diff
+
+    def update_happiness_level(
+        self, teammates_levels, opponents_levels, session_median
+    ):
+        """Update happiness for level games"""
+        if self.level >= session_median:
+            # Higher level players are happier when playing with/against other high level players
+            high_level_count = sum(
+                1
+                for level in teammates_levels + opponents_levels
+                if level >= session_median
+            )
+            self.happiness += high_level_count
 
 
 # %% Example usage of the Player class
@@ -400,6 +422,10 @@ class TeamOfTwo:
             else False
         )
 
+    def same_players(self, other_team):
+        # Check if the two teams have the same players
+        return self.players == other_team.players
+
 
 # %%
 team_of_two = TeamOfTwo(
@@ -445,9 +471,31 @@ class GameOfFour:
         self.teams = set([team_A, team_B])
         # Store the participants of the game
         self.participants = frozenset(self.team_A.players.union(self.team_B.players))
+
+        # Calculate and store mean levels
+        self.team_A_mean_level = self.team_A.mean_level
+        self.team_B_mean_level = self.team_B.mean_level
+        self.overall_mean_level = (self.team_A_mean_level + self.team_B_mean_level) / 2
+
         self.level_difference = np.round(
-            abs(self.team_A.mean_level - self.team_B.mean_level), 2
+            abs(self.team_A_mean_level - self.team_B_mean_level), 2
         )
+
+    def update_player_happiness(self, session_median):
+        """Update happiness for all players in the game"""
+        for team in [self.team_A, self.team_B]:
+            for player in team.players:
+                if self.preference == "balanced":
+                    player.update_happiness_balanced(
+                        self.overall_mean_level, session_median
+                    )
+                elif self.preference == "level":
+                    teammates_levels = [p.level for p in team.players if p != player]
+                    other_team = self.team_B if team == self.team_A else self.team_A
+                    opponents_levels = [p.level for p in other_team.players]
+                    player.update_happiness_level(
+                        teammates_levels, opponents_levels, session_median
+                    )
 
 
 # %% Example usage of the GameOfFour class
@@ -504,29 +552,44 @@ class GamesRound:
         self.people_present = list_of_players
         self.people_present_names = [player.name for player in list_of_players]
         self.previous_games = previous_games_rounds_anti_chron
+        self.previous_teams = set(
+            team for round in previous_games_rounds_anti_chron for team in round.teams
+        )
         self.teams_per_game = teams_per_game
         self.players_per_team = players_per_team
         self.num_iter = num_iter
         self.level_gap_tol = level_gap_tol
 
+        # Create a set of player pairs that have played together
+        self.teammate_history = set()
+        for round in previous_games_rounds_anti_chron:
+            for game in round.games:
+                for team in game.teams:
+                    for player1, player2 in combinations(
+                        [p.name for p in team.players], 2
+                    ):
+                        self.teammate_history.add(frozenset([player1, player2]))
+
         self.games = []
+        self.session_median_level = np.median(
+            [player.level for player in list_of_players]
+        )
         self.create_games(seed=seed)
 
         self.not_playing = [
             person for person in list_of_players if person not in self.people_playing
         ]
 
-    # Modify the create_set_of_all_possible_teams method to include a seed parameter
     def create_set_of_all_possible_teams(self, seed=None):
         if seed is not None:
             np.random.seed(seed)
         # function that creates all possible teams of <players_per_team> players from a set of players
+
         return {
             TeamOfTwo(*team)
             for team in combinations(self.people_playing, self.players_per_team)
         }
 
-    # Modify the create_games method to include a seed parameter
     def create_games(self, seed=None):
         import random
 
@@ -607,143 +670,174 @@ class GamesRound:
             if self.games == []:
                 print("could not find a game, because the tolerance is too low")
 
-            # ####preference == level#################################################
-            # if preference is level, we sort the players by level and create games by level
         if preference_type == "level":
-            # we find all the possible levels
             if isinstance(self.preference, dict):
                 kwargs = self.preference.get("kwargs")
             else:
                 kwargs = {}
             self.create_games_by_level(seed=seed, **kwargs)
-            ########################################################################
+        self.teams = set()
+        for game in self.games:
+            self.teams = self.teams.union(game.teams)
 
-    # Modify the create_balanced_game method to include a seed parameter
     def create_balanced_game(self, people_left_to_play, balanced=True, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
-        # setting maximal number of iterations in each case
-        if balanced:
-            level_diff = 0
-            while level_diff < 3:
-                for i in range(self.num_iter):
-                    teams = []
-                    temp_set_of_teams = self.set_of_all_possible_teams.copy()
-                    # print([(player.name for player in team.players) for team in temp_set_of_teams])
-                    # print([player.name for player in people_left_to_play])
-                    temp_set_of_teams = {
-                        team
-                        for team in temp_set_of_teams
-                        if all(player in people_left_to_play for player in team.players)
-                    }
-                    # print(temp_set_of_teams)
-                    set_of_chosen_teams = set()
-                    for team_iter in range(self.teams_per_game):
-                        team = np.random.choice(list(temp_set_of_teams))
-                        if (
-                            set()
-                            .union(
-                                *(
-                                    other_team.players
-                                    for other_team in set_of_chosen_teams
-                                )
-                            )
-                            .intersection(set(team.players))
-                            == set()
-                        ):
-                            set_of_chosen_teams.add(team)
-                            temp_set_of_teams = temp_set_of_teams.difference({team})
-                    if len(set_of_chosen_teams) == self.teams_per_game:
+        available_players = list(people_left_to_play)
+        if len(available_players) < self.teams_per_game * self.players_per_team:
+            return "could not find a game, because there are not enough players"
 
-                        game_of_four = GameOfFour(
-                            *set_of_chosen_teams, preference=self.preference
-                        )
+        best_game = None
+        best_happiness_score = -1
 
-                        if game_of_four.level_difference <= level_diff:
+        # Track level gap tolerance for this call only (no recursion)
+        current_gap_tol = self.level_gap_tol
+        max_attempts = 3  # Limit the number of tolerance increases
 
-                            return game_of_four
+        for attempt in range(max_attempts):
+            # Try iterations with current tolerance
+            for _ in range(self.num_iter):  # Reduced from 50
+                np.random.shuffle(available_players)
+                teams = []
 
-                level_diff += 0.1
+                for i in range(
+                    0,
+                    self.teams_per_game * self.players_per_team,
+                    self.players_per_team,
+                ):
+                    team_players = available_players[i : i + self.players_per_team]
+                    team = TeamOfTwo(*team_players)
+                    teams.append(team)
 
+                # Create game
+                game = GameOfFour(*teams, preference=self.preference)
+
+                # Only consider games with acceptable level difference
+                if game.level_difference <= current_gap_tol:
+                    # Calculate happiness score more efficiently - no need for loops within loops
+                    happiness_score = sum(
+                        max(0, game.overall_mean_level - player.level) * 2
+                        for team in teams
+                        for player in team.players
+                        if player.level < self.session_median_level
+                    )
+
+                    # Keep the game with highest happiness score
+                    if happiness_score > best_happiness_score:
+                        best_happiness_score = happiness_score
+                        best_game = game
+
+            if best_game:
+                # We found a good game with current tolerance
+                break
+
+            # Increase tolerance and try again
+            current_gap_tol += 0.5
+
+        # If we found a game, update happiness just once at the end
+        if best_game:
+            best_game.update_player_happiness(self.session_median_level)
+            return best_game
         else:
-            # we pick the first two teams with no intersection###############
-            # we randomize the set of teams
-            list_of_teams = list(self.set_of_all_possible_teams)
-            np.random.shuffle(list_of_teams)
+            # Create any valid game as fallback
+            np.random.shuffle(available_players)
+            teams = []
+            for i in range(
+                0, self.teams_per_game * self.players_per_team, self.players_per_team
+            ):
+                team_players = available_players[i : i + self.players_per_team]
+                team = TeamOfTwo(*team_players)
+                teams.append(team)
 
-            for i in range(self.num_iter):
-                possible_team_combination = combinations(
-                    list_of_teams, self.teams_per_game
-                )
-                for team_combination in possible_team_combination:
-                    if (
-                        set().union(*set(possible_team_combination))
-                        == self.set_of_all_possible_teams
-                    ):
-                        break
-            return GameOfFour(*team_combination, preference="None")
-        return "could not find a game, because there are not enough players"
+            game = GameOfFour(*teams, preference=self.preference)
+            game.update_player_happiness(self.session_median_level)
+            return game
 
-    # Modify the create_games_by_level method to include a seed parameter
     def create_games_by_level(self, seed=None, randomize=True):
         if seed is not None:
             np.random.seed(seed)
 
-        # we randomize a bit the level of the players, to avoid having the same players in the same level
-        # we first find the minimal and maximal levels of the players
-        min_level = min([player.level for player in self.people_playing])
-        max_level = max([player.level for player in self.people_playing])
-        level_gap = max_level - min_level
-        if randomize:
-            # we add a random number with value uniformly distributed, up to 1/2 * level_gap if the preceeding noisy level was below the level of the player,
-            # and up to -1/2* level_gap if the preceeding noisy level was above the level of the player
+        # Sort players by level
+        sorted_players = sorted(
+            self.people_playing, key=lambda p: p.level, reverse=True
+        )
 
-            for player in self.people_playing:
-                bias = 1 if player.level > player.noisy_level else -1
-                player.noisy_level = player.level + bias * np.random.uniform(
-                    0, level_gap / 2
-                )
-
-        else:
-            for player in self.people_playing:
-                player.noisy_level = player.level
-        # we first sort the players by level
-
-        # finding all the possible levels, rounded up to 1/4 of the level gap
-        levels = []
-        for player in self.people_playing:
-            rounded_noisy_level = player.noisy_level - player.noisy_level % (
-                level_gap / 8
-            )
-            player.rounded_noisy_level = rounded_noisy_level
-            if rounded_noisy_level not in levels:
-                levels.append(rounded_noisy_level)
-        levels = sorted(levels, reverse=True)
-
-        dic_level_players = {level: [] for level in levels}
-        for player in self.people_playing:
-            dic_level_players[player.rounded_noisy_level].append(player)
-        # we randomize the players in each level
-        for level in dic_level_players.keys():
-            np.random.shuffle(dic_level_players[level])
-        # we flatten the list of players
-        list_of_players_decreasing_order = [
-            player
-            for level in sorted(dic_level_players.keys(), reverse=True)
-            for player in dic_level_players[level]
+        # For higher level players, prioritize matching them with other high-level players
+        high_level_players = [
+            p for p in sorted_players if p.level >= self.session_median_level
         ]
-        people_per_game = self.teams_per_game * self.players_per_team
-        for i in range(self.amount_of_games):
-            self.games.append(
-                self.create_balanced_game(
-                    list_of_players_decreasing_order[
-                        i * people_per_game : (i + 1) * people_per_game
-                    ],
-                    balanced=True,
-                    seed=seed,
-                )
+        low_level_players = [
+            p for p in sorted_players if p.level < self.session_median_level
+        ]
+
+        # Calculate how many games we can make with just high-level players
+        high_level_games_count = min(
+            self.amount_of_games,
+            len(high_level_players) // (self.players_per_team * self.teams_per_game),
+        )
+
+        # Create high-level games first
+        for i in range(high_level_games_count):
+            start_idx = i * self.players_per_team * self.teams_per_game
+            game_players = high_level_players[
+                start_idx : start_idx + (self.players_per_team * self.teams_per_game)
+            ]
+
+            # Divide players into teams by alternating
+            team1_players = game_players[0::2][: self.players_per_team]
+            team2_players = game_players[1::2][: self.players_per_team]
+
+            if (
+                len(team1_players) == self.players_per_team
+                and len(team2_players) == self.players_per_team
+            ):
+                team1 = TeamOfTwo(*team1_players)
+                team2 = TeamOfTwo(*team2_players)
+                game = GameOfFour(team1, team2, preference=self.preference)
+                self.games.append(game)
+                game.update_player_happiness(self.session_median_level)
+
+        # Create remaining games with mixed levels or low levels
+        remaining_players = (
+            high_level_players[
+                high_level_games_count * self.players_per_team * self.teams_per_game :
+            ]
+            + low_level_players
+        )
+
+        # Sort remaining players by level
+        remaining_players.sort(key=lambda p: p.level, reverse=True)
+
+        # Create mixed games
+        for i in range(high_level_games_count, self.amount_of_games):
+            start_idx = (
+                (i - high_level_games_count)
+                * self.players_per_team
+                * self.teams_per_game
             )
+            if start_idx >= len(remaining_players):
+                break
+
+            game_players = remaining_players[
+                start_idx : start_idx + (self.players_per_team * self.teams_per_game)
+            ]
+            if len(game_players) < self.players_per_team * self.teams_per_game:
+                break
+
+            # Divide players into teams by alternating
+            team1_players = game_players[0::2][: self.players_per_team]
+            team2_players = game_players[1::2][: self.players_per_team]
+
+            if (
+                len(team1_players) == self.players_per_team
+                and len(team2_players) == self.players_per_team
+            ):
+                team1 = TeamOfTwo(*team1_players)
+                team2 = TeamOfTwo(*team2_players)
+                game = GameOfFour(team1, team2, preference=self.preference)
+                self.games.append(game)
+                game.update_player_happiness(self.session_median_level)
 
 
 # %%
@@ -870,6 +964,7 @@ class SessionOfRounds:
                     list_of_players=self.players,
                     amount_of_games=self.games_per_round_each_round[i],
                     players_per_team=self.players_per_team_each_round[i],
+                    previous_games_rounds_anti_chron=rounds,
                     preference=self.preferences[i],
                     level_gap_tol=self.level_gap_tol,
                     num_iter=self.num_iter,
@@ -911,7 +1006,9 @@ class SessionOfRounds:
 
         output.append("\n#####AMOUNT OF GAMES PLAYED#####")
         for player in self.players:
-            output.append(f"{player.name} played {player.games_played} games")
+            output.append(
+                f"{player.name} played {player.games_played} games, happiness: {np.round(player.happiness, 2)}"
+            )
 
         # Find and display players who played at least twice with each other and record the rounds
         player_pairs = {}
@@ -947,17 +1044,17 @@ class SessionOfRounds:
 import random
 
 numbers = random.sample(range(0, 31), 12)
-good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
+# good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
 if __name__ == "__main__":
     list_of_players = [
-        Player(main_df.loc[name]) for name in main_df.iloc[good_numbers].index
+        Player(main_df.loc[name]) for name in main_df.iloc[numbers].index
     ]
     session_of_rounds = SessionOfRounds(
         list_of_players,
-        amount_of_rounds=8,
-        preferences=["level"] * 8,
-        level_gap_tol=1,
-        num_iter=40,
+        amount_of_rounds=5,
+        preferences=["balanced"] * 3 + ["level"] * 2,
+        level_gap_tol=1.5,
+        num_iter=100,
         # seed=0,
     )
     # %%
