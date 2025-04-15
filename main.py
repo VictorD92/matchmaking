@@ -973,7 +973,7 @@ class SessionOfRounds:
             )
         self.rounds = rounds
 
-    def print_all_results(self):
+    def print_all_results(self, print_levels=True):
         import pyperclip
 
         # Collect all printed information
@@ -996,9 +996,10 @@ class SessionOfRounds:
                         "level_difference : "
                         + str(np.round(getattr(game, "level_difference"), 2))
                     )
-                if game.preference == "level":
-                    for player in game.participants:
-                        output.append(f"name : {player.name}, level : {player.level}")
+                if print_levels:
+                    if game.preference == "level":
+                        for player in game.participants:
+                            output.append(f"name : {player.name}, level : {player.level}")
                 j += 1
             output.append(f"{i} " * 8 + "ROUND END " + f"{i} " * 8)
             output.append("\n\n\n")
