@@ -528,3 +528,123 @@ session_of_rounds = main.SessionOfRounds(
 # %%
 session_of_rounds.print_all_results()
 # %%
+################################################################################
+################################################################################
+################################################################################
+################################                ################################
+################################   ##   ####### ################################
+################################  ####  #       ################################
+################################   ##   ######  ################################
+################################   ##         # ################################
+################################  ##### ######  ################################
+################################                ################################
+################################################################################
+################################################################################
+################################################################################
+#%%
+# %%
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "Manon",
+        "Luciano",
+        "VictorDi",
+        "Gabriel",
+        "Linda",
+        "Anyel",
+        "Sarah",
+        "David",
+        "Colin",
+        "Leo",
+        "Felix",
+        "Aliénor"
+    ]
+].copy()
+# %%
+list_of_players = [main.Player(df.loc[name]) for name in df.index]
+session_of_rounds = main.SessionOfRounds(
+    list_of_players,
+    amount_of_rounds=3,
+    preferences=["balanced", "balanced", "level"],
+    level_gap_tol=1,
+    num_iter=40,
+    seed=1,
+)
+# %%
+session_of_rounds.print_all_results(print_levels=False)
+
+#%%
+# all players: ['VictorDa', 'Manon', 'Luciano', 'VictorDi', 'Gabriel', 'Linda', 'Anyel', 'Sarah', 'David', 'Colin', 'Leo', 'Felix', 'Aliénor']
+
+
+# 1 1 1 1 1 1 1 1 ROUND 1 1 1 1 1 1 1 1 
+# preference : balanced
+# not playing: ['Colin']
+# ------- game 1 -------
+# [{'Aliénor', 'David'}, {'Leo', 'Manon'}]
+# level_difference : 0.0
+# ------- game 2 -------
+# [{'Luciano', 'VictorDi'}, {'VictorDa', 'Sarah'}]
+# level_difference : 0.0
+# ------- game 3 -------
+# [{'Anyel', 'Felix'}, {'Gabriel', 'Linda'}]
+# level_difference : 0.35
+# 1 1 1 1 1 1 1 1 ROUND END 1 1 1 1 1 1 1 1 
+
+
+
+
+
+
+# 2 2 2 2 2 2 2 2 ROUND 2 2 2 2 2 2 2 2 
+# preference : balanced
+# not playing: ['Manon']
+# ------- game 1 -------
+# [{'VictorDa', 'Felix'}, {'Luciano', 'VictorDi'}]
+# level_difference : 0.15
+# ------- game 2 -------
+# [{'Anyel', 'Aliénor'}, {'Leo', 'Sarah'}]
+# level_difference : 0.5
+# ------- game 3 -------
+# [{'Linda', 'Colin'}, {'Gabriel', 'David'}]
+# level_difference : 0.5
+# 2 2 2 2 2 2 2 2 ROUND END 2 2 2 2 2 2 2 2 
+
+
+
+
+
+
+# 3 3 3 3 3 3 3 3 ROUND 3 3 3 3 3 3 3 3 
+# preference : level
+# not playing: ['Felix']
+# ------- game 1 -------
+# [{'VictorDa', 'Leo'}, {'VictorDi', 'David'}]
+# ------- game 2 -------
+# [{'Gabriel', 'Linda'}, {'Anyel', 'Colin'}]
+# ------- game 3 -------
+# [{'Luciano', 'Aliénor'}, {'Manon', 'Sarah'}]
+# 3 3 3 3 3 3 3 3 ROUND END 3 3 3 3 3 3 3 3 
+
+
+
+
+
+# #####AMOUNT OF GAMES PLAYED#####
+# VictorDa played 3 games, happiness: 3
+# Manon played 2 games, happiness: 22.0
+# Luciano played 3 games, happiness: 44.0
+# VictorDi played 3 games, happiness: 3
+# Gabriel played 3 games, happiness: 2
+# Linda played 3 games, happiness: 2
+# Anyel played 3 games, happiness: 2
+# Sarah played 3 games, happiness: 44.0
+# David played 3 games, happiness: 3
+# Colin played 2 games, happiness: 22.0
+# Leo played 3 games, happiness: 3
+# Felix played 2 games, happiness: 44.0
+# Aliénor played 3 games, happiness: 44.0
+
+# ##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE##########
+# Luciano, VictorDi played together 2 times in rounds: 1, 2
+# Gabriel, Linda played together 2 times in rounds: 1, 3
