@@ -29,6 +29,7 @@ from itertools import combinations
 import datetime
 from math import comb
 from str_to_ascii import *
+import random
 
 # %%
 ################################################################################
@@ -343,20 +344,16 @@ class Player:
         # default is the level of the player
         self.rounded_noisy_level = series["Level"]
 
-    def update_happiness_balanced(self, game_mean_level, session_median):
-        """Update happiness for balanced games"""
+    def update_happiness(
+        self, game_mean_level, teammates_levels, opponents_levels, session_median
+    ):
         if self.level < session_median:
             # For lower level players, happiness increases with level difference
             level_diff = max(0, game_mean_level - self.level)
             self.happiness += np.sign(
                 level_diff
             )  # Adjust happiness based on the sign of level_diff
-
-    def update_happiness_level(
-        self, teammates_levels, opponents_levels, session_median
-    ):
-        """Update happiness for level games"""
-        if self.level >= session_median:
+        else:
             # Higher level players are happier when playing with/against other high level players
             high_level_count = sum(
                 1
@@ -481,21 +478,18 @@ class GameOfFour:
             abs(self.team_A_mean_level - self.team_B_mean_level), 2
         )
 
-    def update_player_happiness(self, session_median):
+    def update_players_happiness(self, session_median_level):
         """Update happiness for all players in the game"""
         for team in [self.team_A, self.team_B]:
-            for player in team.players:
-                if self.preference == "balanced":
-                    player.update_happiness_balanced(
-                        self.overall_mean_level, session_median
-                    )
-                elif self.preference == "level":
-                    teammates_levels = [p.level for p in team.players if p != player]
-                    other_team = self.team_B if team == self.team_A else self.team_A
-                    opponents_levels = [p.level for p in other_team.players]
-                    player.update_happiness_level(
-                        teammates_levels, opponents_levels, session_median
-                    )
+            teammates_levels = [p.level for p in team.players if p != player]
+            other_team = self.team_B if team == self.team_A else self.team_A
+            opponents_levels = [p.level for p in other_team.players]
+            player.update_happiness(
+                self.overall_mean_level,
+                teammates_levels,
+                opponents_levels,
+                session_median_level,
+            )
 
 
 # %% Example usage of the GameOfFour class
@@ -539,6 +533,10 @@ class GamesRound:
         level_gap_tol=0.5,
         seed=None,
     ):
+
+        if seed is not None:
+            random.seed(seed)
+
         self.df = pd.DataFrame([player.series for player in list_of_players])
 
         if amount_of_games:
@@ -561,28 +559,26 @@ class GamesRound:
         self.level_gap_tol = level_gap_tol
 
         # Create a set of player pairs that have played together
-        self.teammate_history = set()
+        self.teammate_history = []
         for round in previous_games_rounds_anti_chron:
             for game in round.games:
                 for team in game.teams:
                     for player1, player2 in combinations(
                         [p.name for p in team.players], 2
                     ):
-                        self.teammate_history.add(frozenset([player1, player2]))
+                        self.teammate_history.append(frozenset([player1, player2]))
 
         self.games = []
         self.session_median_level = np.median(
             [player.level for player in list_of_players]
         )
-        self.create_games(seed=seed)
+        self.create_games()
 
         self.not_playing = [
             person for person in list_of_players if person not in self.people_playing
         ]
 
-    def create_set_of_all_possible_teams(self, seed=None):
-        if seed is not None:
-            np.random.seed(seed)
+    def create_set_of_all_possible_teams(self):
         # function that creates all possible teams of <players_per_team> players from a set of players
 
         return {
@@ -590,12 +586,7 @@ class GamesRound:
             for team in combinations(self.people_playing, self.players_per_team)
         }
 
-    def create_games(self, seed=None):
-        import random
-
-        if seed is not None:
-            np.random.seed(seed)
-            random.seed(seed)
+    def create_games(self):
 
         ####removing players amongst the ones that had played the most##########
         # amount of players that will not play
@@ -609,14 +600,16 @@ class GamesRound:
         }
 
         dic_amount_of_games_played_list_of_players = {
-            amount_of_games_played: set()
+            amount_of_games_played: []
             for amount_of_games_played in all_amounts_of_games_played
         }
+        shuffled_players = self.people_present.copy()
+        random.shuffle(shuffled_players)
 
-        for player in random.sample(
-            list(self.people_present), len(self.people_present)
-        ):
-            dic_amount_of_games_played_list_of_players[player.games_played].add(player)
+        for player in shuffled_players:
+            dic_amount_of_games_played_list_of_players[player.games_played].append(
+                player
+            )
 
         list_descending_priority = [
             player
@@ -631,9 +624,7 @@ class GamesRound:
             player.games_played += 1
         ########################################################################
 
-        self.set_of_all_possible_teams = self.create_set_of_all_possible_teams(
-            seed=seed
-        )
+        self.set_of_all_possible_teams = self.create_set_of_all_possible_teams()
         ######preference == none################################################
         # if preference is none, we create random games, trying not to recreate the same games
         if isinstance(self.preference, dict):
@@ -654,9 +645,7 @@ class GamesRound:
                         if people
                         not in set().union(*{game.participants for game in self.games})
                     ]
-                    self.games.append(
-                        self.create_balanced_game(people_left_to_play, seed=seed)
-                    )
+                    self.games.append(self.create_balanced_game(people_left_to_play))
 
                 if max([game.level_difference for game in self.games]) == 0:
                     break
@@ -675,14 +664,12 @@ class GamesRound:
                 kwargs = self.preference.get("kwargs")
             else:
                 kwargs = {}
-            self.create_games_by_level(seed=seed, **kwargs)
+            self.create_games_by_level(**kwargs)
         self.teams = set()
         for game in self.games:
             self.teams = self.teams.union(game.teams)
 
-    def create_balanced_game(self, people_left_to_play, balanced=True, seed=None):
-        if seed is not None:
-            np.random.seed(seed)
+    def create_balanced_game(self, people_left_to_play):
 
         available_players = list(people_left_to_play)
         if len(available_players) < self.teams_per_game * self.players_per_team:
@@ -698,7 +685,7 @@ class GamesRound:
         for attempt in range(max_attempts):
             # Try iterations with current tolerance
             for _ in range(self.num_iter):  # Reduced from 50
-                np.random.shuffle(available_players)
+                random.shuffle(available_players)
                 teams = []
 
                 for i in range(
@@ -737,11 +724,12 @@ class GamesRound:
 
         # If we found a game, update happiness just once at the end
         if best_game:
-            best_game.update_player_happiness(self.session_median_level)
+            best_game.update_players_happiness(self.session_median_level)
             return best_game
         else:
             # Create any valid game as fallback
-            np.random.shuffle(available_players)
+            random.shuffle(available_players)
+            print("shuffled players:", [player.name for player in available_players])
             teams = []
             for i in range(
                 0, self.teams_per_game * self.players_per_team, self.players_per_team
@@ -751,12 +739,10 @@ class GamesRound:
                 teams.append(team)
 
             game = GameOfFour(*teams, preference=self.preference)
-            game.update_player_happiness(self.session_median_level)
+            game.update_players_happiness(self.session_median_level)
             return game
 
-    def create_games_by_level(self, seed=None, randomize=True):
-        if seed is not None:
-            np.random.seed(seed)
+    def create_games_by_level(self, randomize=True):
 
         # Sort players by level
         sorted_players = sorted(
@@ -796,7 +782,7 @@ class GamesRound:
                 team2 = TeamOfTwo(*team2_players)
                 game = GameOfFour(team1, team2, preference=self.preference)
                 self.games.append(game)
-                game.update_player_happiness(self.session_median_level)
+                game.update_players_happiness(self.session_median_level)
 
         # Create remaining games with mixed levels or low levels
         remaining_players = (
@@ -837,7 +823,7 @@ class GamesRound:
                 team2 = TeamOfTwo(*team2_players)
                 game = GameOfFour(team1, team2, preference=self.preference)
                 self.games.append(game)
-                game.update_player_happiness(self.session_median_level)
+                game.update_players_happiness(self.session_median_level)
 
 
 # %%
@@ -863,9 +849,9 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    list_of_players = [Player(main_df.loc[name]) for name in main_df.iloc[10:22].index]
+    list_of_players = [Player(main_df.loc[name]) for name in main_df.iloc[10:21].index]
     round_of_games = GamesRound(
-        list_of_players, preference="level", level_gap_tol=2, num_iter=40, seed=0
+        list_of_players, preference="balanced", level_gap_tol=2, num_iter=40, seed=1
     )
 
     for attr in ["amount_of_games", "preference"]:
@@ -959,6 +945,10 @@ class SessionOfRounds:
         # function that creates a list of rounds
         rounds = []
         for i in range(self.amount_of_rounds):
+            if seed is not None:
+                round_seed = seed + i
+            else:
+                round_seed = None
             rounds.append(
                 GamesRound(
                     list_of_players=self.players,
@@ -968,7 +958,7 @@ class SessionOfRounds:
                     preference=self.preferences[i],
                     level_gap_tol=self.level_gap_tol,
                     num_iter=self.num_iter,
-                    seed=seed,
+                    seed=round_seed,
                 )
             )
         self.rounds = rounds
@@ -1044,7 +1034,7 @@ class SessionOfRounds:
 import random
 
 # numbers = random.sample(range(0, 31), 12)
-good_numbers = [1, 3, 4, 5, 7, 9, 12, 15, 16, 17, 23, 27]
+good_numbers = [1, 3, 4, 5, 7, 9]  # , 12, 15, 16, 17, 23, 27]
 if __name__ == "__main__":
     list_of_players = [
         Player(main_df.loc[name]) for name in main_df.iloc[good_numbers].index
@@ -1055,12 +1045,7 @@ if __name__ == "__main__":
         preferences=["balanced"] * 3 + ["level"] * 3,
         level_gap_tol=1.5,
         num_iter=50,
-        # seed=0,
+        seed=3,
     )
     # %%
     session_of_rounds.print_all_results()
-
-# %%
-
-
-# %%
