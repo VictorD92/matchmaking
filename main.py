@@ -481,15 +481,16 @@ class GameOfFour:
     def update_players_happiness(self, session_median_level):
         """Update happiness for all players in the game"""
         for team in [self.team_A, self.team_B]:
-            teammates_levels = [p.level for p in team.players if p != player]
-            other_team = self.team_B if team == self.team_A else self.team_A
-            opponents_levels = [p.level for p in other_team.players]
-            player.update_happiness(
-                self.overall_mean_level,
-                teammates_levels,
-                opponents_levels,
-                session_median_level,
-            )
+            for player in team.players:    
+                teammates_levels = [p.level for p in team.players if p != player]
+                other_team = self.team_B if team == self.team_A else self.team_A
+                opponents_levels = [p.level for p in other_team.players]
+                player.update_happiness(
+                    self.overall_mean_level,
+                    teammates_levels,
+                    opponents_levels,
+                    session_median_level,
+                )
 
 
 # %% Example usage of the GameOfFour class
