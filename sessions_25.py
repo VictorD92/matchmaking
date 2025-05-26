@@ -873,5 +873,5 @@ session_of_rounds = main.SessionOfRounds(
     seed=1,
 )
 # %%
-session_of_rounds.print_all_results(print_levels=False)
+session_of_rounds.print_all_results(print_levels=True)
 # %%
