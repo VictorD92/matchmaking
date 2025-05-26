@@ -9,6 +9,7 @@ from itertools import combinations
 import datetime
 from math import comb
 from str_to_ascii import *
+from importlib import reload
 
 
 # %%
@@ -692,11 +693,11 @@ session_of_rounds = main.SessionOfRounds(
 )
 # %%
 session_of_rounds.print_all_results(print_levels=False)
-#%%
+# %%
 
 
-str_to_ascii("20",interm_title=True)
-#%%
+str_to_ascii("20", interm_title=True)
+# %%
 ################################################################################
 ################################################################################
 ################################################################################
@@ -710,10 +711,22 @@ str_to_ascii("20",interm_title=True)
 ################################################################################
 ################################################################################
 ################################################################################
-#%%
+# %%
 
 df = main.main_df.loc[
-    ["VictorDa", "Manon", "Leo", "Aliénor", "Sarah", "Jérémy", "Marc", "Luciano", "David","Felix","Enzo"]
+    [
+        "VictorDa",
+        "Manon",
+        "Leo",
+        "Aliénor",
+        "Sarah",
+        "Jérémy",
+        "Marc",
+        "Luciano",
+        "David",
+        "Felix",
+        "Enzo",
+    ]
 ].copy()
 # %%
 
@@ -733,55 +746,47 @@ sarah_l = pd.Series(
         "Name": "Sarah",
         "Level": 4,
         "Surname": "chaipas",
-        "Gender" : "Female",
-        "Games played" : 0
+        "Gender": "Female",
+        "Games played": 0,
     },
-    name = "SarahL"
+    name="SarahL",
 )
 theo = pd.Series(
     {
-        "Name" : "Théo",
-        "Level" : 3,
-        "Surname" : "Moulin",
-        "Gender" : "Male",
-        "Games played" : 0
+        "Name": "Théo",
+        "Level": 3,
+        "Surname": "Moulin",
+        "Gender": "Male",
+        "Games played": 0,
     },
-    name = "Théo"
+    name="Théo",
 )
 jerry = pd.Series(
     {
-        "Name" : "Jerry",
-        "Level" : 3,
-        "Surname" : "chaipas",
-        "Gender" : "Male",
-        "Games played" : 0
+        "Name": "Jerry",
+        "Level": 3,
+        "Surname": "chaipas",
+        "Gender": "Male",
+        "Games played": 0,
     },
-    name = "Jerry"
+    name="Jerry",
 )
 noe = pd.Series(
     {
-        "Name" : "Noe",
-        "Level" : 4,
-        "Surname" : "chaipas",
-        "Gender" : "Male",
-        "Games played" : 0
+        "Name": "Noe",
+        "Level": 4,
+        "Surname": "chaipas",
+        "Gender": "Male",
+        "Games played": 0,
     },
-    name = "Noe"
+    name="Noe",
 )
 manon_p = pd.Series(
-    {
-        "Name" : "Manon",
-        "Level" : 1,
-        "Surname" : "P",
-        "Gender" : "Male",
-        "Games played" : 0
-    },
-    name = "ManonP"
+    {"Name": "Manon", "Level": 1, "Surname": "P", "Gender": "Male", "Games played": 0},
+    name="ManonP",
 )
-df = pd.concat(
-    [df, pd.DataFrame([dano, theo, jerry, noe, manon_p, sarah_l])]
-    )
-#%%
+df = pd.concat([df, pd.DataFrame([dano, theo, jerry, noe, manon_p, sarah_l])])
+# %%
 
 list_of_players = [main.Player(df.loc[name]) for name in df.index]
 session_of_rounds = main.SessionOfRounds(
@@ -793,35 +798,10 @@ session_of_rounds = main.SessionOfRounds(
     seed=1,
 )
 # %%
-session_of_rounds.print_all_results(print_levels=True)
-# %%
-################################################################################
-################################################################################
-################################################################################
-################################                ################################
-################################  #####    ##   ################################
-################################ #     #  ###   ################################
-################################     ##    ##   ################################
-################################   ##      ##   ################################
-################################ ####### ###### ################################
-################################                ################################
-################################################################################
-################################################################################
-################################################################################
-#%%
-df = main.main_df.loc[
-    ["VictorDa", "Marc", "Florina", "Aliénor", "David", "Felix", "VictorDi", "Linda", "Lucas"]
-].copy()
+session_of_rounds.print_all_results(print_levels=False)
 
-list_of_players = [main.Player(df.loc[name]) for name in df.index]
-session_of_rounds = main.SessionOfRounds(
-    list_of_players,
-    amount_of_rounds=5,
-    preferences=["balanced", "balanced","balanced", "level", "level"],
-    level_gap_tol=1,
-    num_iter=40,
-    seed=1,
-)
 # %%
-session_of_rounds.print_all_results(print_levels=True)
+session_of_rounds.rounds[3].previous_teams
+# %%
+
 # %%
