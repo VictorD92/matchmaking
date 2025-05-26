@@ -432,7 +432,7 @@ team_of_two = TeamOfTwo(
 )
 for attr in [
     "preference",
-    "players",
+    "players_name",
     "level_difference",
     "mixed",
     "male",
@@ -481,7 +481,7 @@ class GameOfFour:
     def update_players_happiness(self, session_median_level):
         """Update happiness for all players in the game"""
         for team in [self.team_A, self.team_B]:
-            for player in team.players:    
+            for player in team.players:
                 teammates_levels = [p.level for p in team.players if p != player]
                 other_team = self.team_B if team == self.team_A else self.team_A
                 opponents_levels = [p.level for p in other_team.players]
@@ -579,13 +579,20 @@ class GamesRound:
             person for person in list_of_players if person not in self.people_playing
         ]
 
-    def create_set_of_all_possible_teams(self):
+    def create_set_of_all_possible_teams(self, remove_previous_teams=True):
         # function that creates all possible teams of <players_per_team> players from a set of players
-
-        return {
+        set_of_all_possible_teams = set(
             TeamOfTwo(*team)
             for team in combinations(self.people_playing, self.players_per_team)
-        }
+        )
+        # remove teams that have already played together
+        if remove_previous_teams:
+            set_of_all_possible_teams = set(
+                team
+                for team in set_of_all_possible_teams
+                if not any([team.same_players(team2) for team2 in self.previous_teams])
+            )
+        return set_of_all_possible_teams
 
     def create_games(self):
 
@@ -710,6 +717,15 @@ class GamesRound:
                         for player in team.players
                         if player.level < self.session_median_level
                     )
+                    # print("happiness before previous games:", happiness_score)
+                    happiness_score -= 5 * (
+                        sum(
+                            team.same_players(team2)
+                            for team in teams
+                            for team2 in self.previous_teams
+                        )
+                    )
+                    # print("happiness after previous games:", happiness_score)
 
                     # Keep the game with highest happiness score
                     if happiness_score > best_happiness_score:
@@ -725,12 +741,11 @@ class GamesRound:
 
         # If we found a game, update happiness just once at the end
         if best_game:
-            best_game.update_players_happiness(self.session_median_level)
             return best_game
         else:
             # Create any valid game as fallback
             random.shuffle(available_players)
-            print("shuffled players:", [player.name for player in available_players])
+            # print("shuffled players:", [player.name for player in available_players])
             teams = []
             for i in range(
                 0, self.teams_per_game * self.players_per_team, self.players_per_team
@@ -740,7 +755,6 @@ class GamesRound:
                 teams.append(team)
 
             game = GameOfFour(*teams, preference=self.preference)
-            game.update_players_happiness(self.session_median_level)
             return game
 
     def create_games_by_level(self, randomize=True):
@@ -774,6 +788,23 @@ class GamesRound:
             # Divide players into teams by alternating
             team1_players = game_players[0::2][: self.players_per_team]
             team2_players = game_players[1::2][: self.players_per_team]
+            alternative_possible_teams = list(
+                combinations(game_players, self.players_per_team)
+            )
+            max_iter = len(alternative_possible_teams)
+            iter = 0
+            while (
+                (
+                    set(team1_players) in [team.players for team in self.previous_teams]
+                    or set(team2_players)
+                    in [team.players for team in self.previous_teams]
+                )
+            ) and iter < max_iter:
+                team1_players = alternative_possible_teams[iter]
+                team2_players = [
+                    player for player in game_players if player not in team1_players
+                ]
+                iter += 1
 
             if (
                 len(team1_players) == self.players_per_team
@@ -815,6 +846,23 @@ class GamesRound:
             # Divide players into teams by alternating
             team1_players = game_players[0::2][: self.players_per_team]
             team2_players = game_players[1::2][: self.players_per_team]
+            alternative_possible_teams = list(
+                combinations(game_players, self.players_per_team)
+            )
+            max_iter = len(alternative_possible_teams)
+            iter = 0
+            while (
+                (
+                    set(team1_players) in [team.players for team in self.previous_teams]
+                    or set(team2_players)
+                    in [team.players for team in self.previous_teams]
+                )
+            ) and iter < max_iter:
+                team1_players = alternative_possible_teams[iter]
+                team2_players = [
+                    player for player in game_players if player not in team1_players
+                ]
+                iter += 1
 
             if (
                 len(team1_players) == self.players_per_team
@@ -990,7 +1038,9 @@ class SessionOfRounds:
                 if print_levels:
                     if game.preference == "level":
                         for player in game.participants:
-                            output.append(f"name : {player.name}, level : {player.level}")
+                            output.append(
+                                f"name : {player.name}, level : {player.level}"
+                            )
                 j += 1
             output.append(f"{i} " * 8 + "ROUND END " + f"{i} " * 8)
             output.append("\n\n\n")
