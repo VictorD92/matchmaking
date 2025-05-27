@@ -831,18 +831,19 @@ df = main.main_df.loc[
         "Nathan",
         "Jérémy",
         "Marc",
-        "Luciano",
+        "VictorDi",
         "David",
         "Felix",
         "Enzo",
+        "Florina"
     ]
 ].copy()
-# %%
+
 manon_p = pd.Series(
     {
         "Name": "Manon",
         "Level": 1,
-        "Surname": "P",
+        "Surname": "chaipas",
         "Gender": "Female",
         "Games played": 0,
         "Happiness": 0,
@@ -852,7 +853,7 @@ manon_p = pd.Series(
 plus_1_dom = pd.Series(
     {
         "Name": "plus_1_dom",
-        "Level": 1,
+        "Level": 2,
         "Surname": "chaipa",
         "Gender": "Male",
         "Games played": 0,
@@ -864,14 +865,24 @@ df = pd.concat([df, pd.DataFrame([manon_p, plus_1_dom])])
 # %%
 
 list_of_players = [main.Player(df.loc[name]) for name in df.index]
-session_of_rounds = main.SessionOfRounds(
+session_of_rounds_1 = main.SessionOfRounds(
     list_of_players,
-    amount_of_rounds=4,
-    preferences=["balanced", "balanced", "level", "level"],
+    amount_of_rounds=3,
+    preferences=["balanced", "balanced", "level"],
+    level_gap_tol=0.5,
+    num_iter=40,
+    seed=1,
+)
+session_of_rounds_2 = main.SessionOfRounds(
+    [player for player in list_of_players if player.name != "Felix"],
+    amount_of_rounds=1,
+    preferences=["level"],
     level_gap_tol=0.5,
     num_iter=40,
     seed=1,
 )
 # %%
-session_of_rounds.print_all_results(print_levels=True)
+session_of_rounds_1.print_all_results(print_levels=True)
+# %%
+session_of_rounds_2.print_all_results(print_levels=True)
 # %%
