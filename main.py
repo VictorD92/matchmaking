@@ -184,7 +184,7 @@ df_minimal_example["Level"].unique()
 
 
 main_df = pd.read_excel("Adhésion au GRNA 2024-2025 (Responses).xlsx")
-level_df = pd.read_excel("Niveau.xlsx")
+level_df = pd.read_excel("4_Niveau.xlsx")
 
 for data_frame in [main_df, level_df]:
     data_frame["PrénomNom"] = data_frame["Prénom"].apply(
@@ -355,10 +355,8 @@ class Player:
             )  # Adjust happiness based on the sign of level_diff
         else:
             # Higher level players are happier when playing with/against other high level players
-            high_level_count = sum(
-                1
-                for level in teammates_levels + opponents_levels
-                if level >= session_median
+            high_level_count = (
+                3 if np.mean(teammates_levels + opponents_levels) >= self.level else 0
             )
             self.happiness += high_level_count
 
@@ -430,16 +428,16 @@ team_of_two = TeamOfTwo(
     Player(df_minimal_example.iloc[1]),
     preference="Level",
 )
-for attr in [
-    "preference",
-    "players_name",
-    "level_difference",
-    "mixed",
-    "male",
-    "female",
-    "non_binary",
-]:
-    print(attr + " : ", getattr(team_of_two, attr))
+# for attr in [
+#     "preference",
+#     "players_name",
+#     "level_difference",
+#     "mixed",
+#     "male",
+#     "female",
+#     "non_binary",
+# ]:
+#     print(attr + " : ", getattr(team_of_two, attr))
 
 
 # %%
@@ -757,7 +755,7 @@ class GamesRound:
             game = GameOfFour(*teams, preference=self.preference)
             return game
 
-    def create_games_by_level(self, randomize=True):
+    def create_games_by_level(self, alternate=False):
 
         # Sort players by level
         sorted_players = sorted(
@@ -785,9 +783,22 @@ class GamesRound:
                 start_idx : start_idx + (self.players_per_team * self.teams_per_game)
             ]
 
-            # Divide players into teams by alternating
-            team1_players = game_players[0::2][: self.players_per_team]
-            team2_players = game_players[1::2][: self.players_per_team]
+            if alternate:
+                # Divide players into teams by alternating
+                team1_players = game_players[0::2][: self.players_per_team]
+                team2_players = game_players[1::2][: self.players_per_team]
+            else:
+                # Divide players into teams by putting 0 and 4 together, and 2 and 3 together
+                # WORKS ONLY FOR 4 PLAYERS
+                if len(game_players) == 4:
+                    team1_players = [game_players[i] for i in [0, 3]]
+                    team2_players = [game_players[i] for i in [1, 2]]
+                else:
+                    print(
+                        "Error: Game creation by level requires exactly 4 players per game."
+                        "please put alternate to True if you want to create games with more than 4 players"
+                    )
+
             alternative_possible_teams = list(
                 combinations(game_players, self.players_per_team)
             )
@@ -1012,14 +1023,17 @@ class SessionOfRounds:
             )
         self.rounds = rounds
 
-    def print_all_results(self, print_levels=True):
+    def print_all_results(self, print_levels=True, order_num_list=None):
         import pyperclip
 
         # Collect all printed information
         output = []
         output.append("all players: " + str(self.players_name))
         i = 1
-        for round in self.rounds:
+        round_copy = self.rounds.copy()
+        if order_num_list is not None:
+            round_copy = [round_copy[i - 1] for i in order_num_list]
+        for round in round_copy:
             output.append("\n")
             output.append(f"{i} " * 8 + "ROUND " + f"{i} " * 8)
             output.append("preference : " + str(getattr(round, "preference")))
@@ -1100,4 +1114,4 @@ if __name__ == "__main__":
         seed=3,
     )
     # %%
-    session_of_rounds.print_all_results()
+    # session_of_rounds.print_all_results()
