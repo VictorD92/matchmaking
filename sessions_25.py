@@ -1129,16 +1129,17 @@ session_of_rounds_2.print_all_results(print_levels=True)
 df = main.main_df.loc[
     [
         "VictorDa",
-        "Manon",
         "Aliénor",
-        "Luciano",
         "Felix",
         "VictorDi",
         "Colin",
-        "Sarah",
         "Anyel",
         "Jérémy",
         "Gabriel",
+        "Leo",
+        "Enzo",
+        "David",
+        "Angela",
     ]
 ].copy()
 Marius = pd.Series(
@@ -1170,13 +1171,15 @@ list_of_players = [main.Player(df.loc[name]) for name in df.index]
 
 session_of_rounds = main.SessionOfRounds(
     list_of_players,
-    amount_of_rounds=4,
-    preferences=["level", "level", "balanced", "balanced"],
-    level_gap_tol=0.5,
-    num_iter=40,
+    amount_of_rounds=6,
+    preferences=["balanced", "balanced", "balanced", "balanced", "level", "level"],
+    level_gap_tol=0.3,
+    num_iter=400,
     seed=1,
 )
 
 # %%
-session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+session_of_rounds.print_all_results(
+    print_levels=True,
+)  # order_num_list=[3, 4, 1, 2])
 # %%

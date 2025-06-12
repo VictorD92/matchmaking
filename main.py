@@ -348,17 +348,24 @@ class Player:
         self, game_mean_level, teammates_levels, opponents_levels, session_median
     ):
         if self.level < session_median:
-            # For lower level players, happiness increases with level difference
+            # For lower level players, happiness increases proportionally to level difference
             level_diff = max(0, game_mean_level - self.level)
-            self.happiness += np.sign(
-                level_diff
-            )  # Adjust happiness based on the sign of level_diff
+            self.happiness += level_diff * 0.5  # Proportional instead of just sign
         else:
-            # Higher level players are happier when playing with/against other high level players
-            high_level_count = (
-                3 if np.mean(teammates_levels + opponents_levels) >= self.level else 0
+            # More nuanced happiness calculation for higher level players
+            high_level_teammates = sum(
+                1 for level in teammates_levels if level >= self.level * 0.9
             )
-            self.happiness += high_level_count
+            high_level_opponents = sum(
+                1 for level in opponents_levels if level >= self.level * 0.9
+            )
+
+            # Higher level players are happier with competitive matches
+            self.happiness += 0.5 * high_level_teammates + 0.7 * high_level_opponents
+
+            # Penalize if consistently playing with much lower level players
+            if max(teammates_levels + opponents_levels) < self.level * 0.8:
+                self.happiness -= 0.5
 
 
 # %% Example usage of the Player class
@@ -617,6 +624,12 @@ class GamesRound:
                 player
             )
 
+        # Sort each group of players with the same games played by increasing happiness
+        for k in dic_amount_of_games_played_list_of_players:
+            dic_amount_of_games_played_list_of_players[k].sort(
+                key=lambda p: p.happiness
+            )
+
         list_descending_priority = [
             player
             for i in sorted(
@@ -653,11 +666,14 @@ class GamesRound:
                     ]
                     self.games.append(self.create_balanced_game(people_left_to_play))
 
-                if max([game.level_difference for game in self.games]) == 0:
-                    break
                 if (
                     max([game.level_difference for game in self.games])
                     <= self.level_gap_tol
+                ):
+                    break
+                if (
+                    max([game.level_difference for game in self.games])
+                    <= 3 * self.level_gap_tol
                 ) and (iter > self.num_iter // 2):
                     break
                 self.games = []
@@ -708,22 +724,29 @@ class GamesRound:
 
                 # Only consider games with acceptable level difference
                 if game.level_difference <= current_gap_tol:
-                    # Calculate happiness score more efficiently - no need for loops within loops
+                    # Calculate happiness score with fairness across all players
                     happiness_score = sum(
                         max(0, game.overall_mean_level - player.level) * 2
                         for team in teams
                         for player in team.players
                         if player.level < self.session_median_level
                     )
-                    # print("happiness before previous games:", happiness_score)
-                    happiness_score -= 5 * (
-                        sum(
-                            team.same_players(team2)
-                            for team in teams
-                            for team2 in self.previous_teams
-                        )
+                    # Add happiness consideration for higher-level players too
+                    happiness_score += sum(
+                        max(0, player.level - game.overall_mean_level) * 2
+                        for team in teams
+                        for player in team.players
+                        if player.level >= self.session_median_level
                     )
-                    # print("happiness after previous games:", happiness_score)
+                    # Factor in current happiness state to prioritize less happy players
+                    happiness_score += sum(
+                        5
+                        / (
+                            player.happiness + 1
+                        )  # Higher weight for players with lower happiness
+                        for team in teams
+                        for player in team.players
+                    )
 
                     # Keep the game with highest happiness score
                     if happiness_score > best_happiness_score:
@@ -757,15 +780,17 @@ class GamesRound:
 
     def create_games_by_level(self, alternate=False):
 
-        # Sort players by level
         sorted_players = sorted(
-            self.people_playing, key=lambda p: p.level, reverse=True
+            self.people_playing,
+            key=lambda p: (round(p.level * 2) / 2, -p.happiness),
+            reverse=True,
         )
 
         # For higher level players, prioritize matching them with other high-level players
         high_level_players = [
             p for p in sorted_players if p.level >= self.session_median_level
         ]
+
         low_level_players = [
             p for p in sorted_players if p.level < self.session_median_level
         ]
@@ -799,23 +824,40 @@ class GamesRound:
                         "please put alternate to True if you want to create games with more than 4 players"
                     )
 
+            # Generate all possible (team1, team2) combinations as TeamOfTwo objects
             alternative_possible_teams = list(
                 combinations(game_players, self.players_per_team)
             )
-            max_iter = len(alternative_possible_teams)
-            iter = 0
-            while (
-                (
-                    set(team1_players) in [team.players for team in self.previous_teams]
-                    or set(team2_players)
-                    in [team.players for team in self.previous_teams]
-                )
-            ) and iter < max_iter:
-                team1_players = alternative_possible_teams[iter]
-                team2_players = [
+            possible_team_pairs = []
+            for team1_players in alternative_possible_teams:
+                team2_players = tuple(
                     player for player in game_players if player not in team1_players
-                ]
-                iter += 1
+                )
+                if len(team2_players) == self.players_per_team:
+                    team1 = TeamOfTwo(*team1_players)
+                    team2 = TeamOfTwo(*team2_players)
+                    level_diff = abs(team1.mean_level - team2.mean_level)
+                    possible_team_pairs.append((team1, team2, level_diff))
+
+            # Sort by difference of levels
+            possible_team_pairs.sort(key=lambda x: x[2])
+
+            # Pick the first one where neither team was in previous_teams
+            found = False
+            prev_team_sets = [team.players for team in self.previous_teams]
+            for team1, team2, _ in possible_team_pairs:
+                if (
+                    team1.players not in prev_team_sets
+                    and team2.players not in prev_team_sets
+                ):
+                    team1_obj, team2_obj = team1, team2
+                    found = True
+                    break
+            else:
+                # fallback: just use the first possible pair
+                team1_obj, team2_obj, _ = possible_team_pairs[0]
+            team1_players = list(team1_obj.players)
+            team2_players = list(team2_obj.players)
 
             if (
                 len(team1_players) == self.players_per_team
@@ -1021,6 +1063,23 @@ class SessionOfRounds:
                     seed=round_seed,
                 )
             )
+        # Calculate happiness inequality before each round
+        for i in range(self.amount_of_rounds):
+            # Sort players by happiness to prioritize less happy players
+            sorted_players = sorted(self.players, key=lambda p: p.happiness)
+
+            # Give priority to players with lower happiness scores
+            if i > 0:  # Skip for first round since all start at 0 happiness
+                # Assign temporary boost to level for less happy players
+                for idx, player in enumerate(sorted_players):
+                    boost_factor = 1 + (
+                        0.2 * (len(sorted_players) - idx) / len(sorted_players)
+                    )
+                    player.temp_boost = boost_factor
+
+            # Reset temporary boosts
+            for player in self.players:
+                player.temp_boost = 1.0
         self.rounds = rounds
 
     def print_all_results(self, print_levels=True, order_num_list=None):
@@ -1069,7 +1128,11 @@ class SessionOfRounds:
         # Find and display players who played at least twice with each other and record the rounds
         player_pairs = {}
         pair_rounds = {}
-        for round_index, round in enumerate(self.rounds, start=1):
+        # Use the possibly reordered rounds for analysis
+        round_copy = self.rounds.copy()
+        if order_num_list is not None:
+            round_copy = [round_copy[i - 1] for i in order_num_list]
+        for round_index, round in enumerate(round_copy, start=1):
             for game in round.games:
                 for team in game.teams:
                     for player_a, player_b in combinations(team.players, 2):
@@ -1088,8 +1151,56 @@ class SessionOfRounds:
                 output.append(
                     f"{', '.join(pair)} played together {count} times in rounds: {rounds}"
                 )
+        # Find and display players who played against each other at least twice and record the rounds
+        opponent_pairs = {}
+        opponent_pair_rounds = {}
+        for round_index, round in enumerate(round_copy, start=1):
+            for game in round.games:
+                team_A, team_B = list(game.teams)
+                for player_a in team_A.players:
+                    for player_b in team_B.players:
+                        pair = frozenset([player_a.name, player_b.name])
+                        opponent_pairs[pair] = opponent_pairs.get(pair, 0) + 1
+                        if pair not in opponent_pair_rounds:
+                            opponent_pair_rounds[pair] = []
+                        opponent_pair_rounds[pair].append(round_index)
 
-        # Copy the output to the clipboard
+        output.append(
+            "\n##########PLAYERS WHO PLAYED AGAINST EACH OTHER AT LEAST THRICE##########"
+        )
+        for pair, count in opponent_pairs.items():
+            if count >= 3:
+                rounds = ", ".join(map(str, opponent_pair_rounds[pair]))
+                output.append(
+                    f"{', '.join(pair)} played against each other {count} times in rounds: {rounds}"
+                )
+
+        # Add happiness analytics section
+        output.append("\n#####HAPPINESS ANALYTICS#####")
+
+        # Calculate happiness statistics
+        happiness_values = [player.happiness for player in self.players]
+        output.append(f"Average happiness: {np.round(np.mean(happiness_values), 2)}")
+        output.append(
+            f"Happiness standard deviation: {np.round(np.std(happiness_values), 2)}"
+        )
+        output.append(f"Min happiness: {np.round(min(happiness_values), 2)}")
+        output.append(f"Max happiness: {np.round(max(happiness_values), 2)}")
+
+        # Identify happiest and least happy players
+        happiest_players = sorted(
+            self.players, key=lambda p: p.happiness, reverse=True
+        )[:3]
+        least_happy_players = sorted(self.players, key=lambda p: p.happiness)[:3]
+
+        output.append("\nHappiest players:")
+        for player in happiest_players:
+            output.append(f"{player.name}: {np.round(player.happiness, 2)}")
+
+        output.append("\nLeast happy players:")
+        for player in least_happy_players:
+            output.append(f"{player.name}: {np.round(player.happiness, 2)}")
+
         pyperclip.copy("\n".join(output))
         print("\n".join(output))
         print("\n\n\n\nALL RESULTS HAVE BEEN COPIED TO THE CLIPBOARD.")
