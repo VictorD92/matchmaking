@@ -1183,3 +1183,68 @@ session_of_rounds.print_all_results(
     print_levels=True,
 )  # order_num_list=[3, 4, 1, 2])
 # %%
+# %%
+
+################################################################################
+################################################################################
+################################################################################
+################################               #################################
+################################   ##  #####  #################################
+################################  # #      #  #################################
+################################    #     #   #################################
+################################    #    #    #################################
+################################  #####  #     #################################
+################################               #################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+# %%
+# %%
+# %%
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "Aliénor",
+        "VictorDi",
+        "Sarah",
+        "Florina",
+        "Colin",
+        "Jérémy",
+        "Leo",
+        "Enzo",
+        "David",
+        "Angela",
+        "Dominik",
+        "Elise",
+    ]
+].copy()
+# %%
+reload(main)
+
+first_seed = 1
+for seed in range(first_seed, 6):
+    print(f"Seed: {seed}")
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        preferences=["balanced", "balanced", "level", "level"],
+        level_gap_tol=0.3,
+        num_iter=100,
+        seed=seed,
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    if (
+        seed == first_seed
+        or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
+    ):
+        session_of_rounds = temp_session_of_rounds
+
+
+# %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+# %%
+
+# %%

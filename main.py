@@ -347,25 +347,21 @@ class Player:
     def update_happiness(
         self, game_mean_level, teammates_levels, opponents_levels, session_median
     ):
-        if self.level < session_median:
-            # For lower level players, happiness increases proportionally to level difference
-            level_diff = max(0, game_mean_level - self.level)
-            self.happiness += level_diff * 0.5  # Proportional instead of just sign
-        else:
-            # More nuanced happiness calculation for higher level players
-            high_level_teammates = sum(
-                1 for level in teammates_levels if level >= self.level * 0.9
-            )
-            high_level_opponents = sum(
-                1 for level in opponents_levels if level >= self.level * 0.9
-            )
 
-            # Higher level players are happier with competitive matches
-            self.happiness += 0.5 * high_level_teammates + 0.7 * high_level_opponents
+        # More nuanced happiness calculation for higher level players
+        high_level_teammates = sum(
+            1 for level in teammates_levels if level >= self.level * 0.9
+        )
+        high_level_opponents = sum(
+            1 for level in opponents_levels if level >= self.level * 0.9
+        )
 
-            # Penalize if consistently playing with much lower level players
-            if max(teammates_levels + opponents_levels) < self.level * 0.8:
-                self.happiness -= 0.5
+        # Higher level players are happier with competitive matches
+        self.happiness += high_level_teammates + high_level_opponents
+
+        # Penalize if consistently playing with much lower level players
+        if np.mean(teammates_levels + opponents_levels) < self.level * 0.5:
+            self.happiness -= 1
 
 
 # %% Example usage of the Player class
@@ -785,39 +781,31 @@ class GamesRound:
             key=lambda p: (round(p.level * 2) / 2, -p.happiness),
             reverse=True,
         )
-
-        # For higher level players, prioritize matching them with other high-level players
-        high_level_players = [
-            p for p in sorted_players if p.level >= self.session_median_level
-        ]
-
-        low_level_players = [
-            p for p in sorted_players if p.level < self.session_median_level
-        ]
-
-        # Calculate how many games we can make with just high-level players
-        high_level_games_count = min(
-            self.amount_of_games,
-            len(high_level_players) // (self.players_per_team * self.teams_per_game),
-        )
-
-        # Create high-level games first
-        for i in range(high_level_games_count):
-            start_idx = i * self.players_per_team * self.teams_per_game
-            game_players = high_level_players[
-                start_idx : start_idx + (self.players_per_team * self.teams_per_game)
+        all_players_in_each_game = [
+            [
+                player
+                for player in sorted_players[
+                    i : i + self.players_per_team * self.teams_per_game
+                ]
             ]
+            for i in range(
+                0, len(sorted_players), self.players_per_team * self.teams_per_game
+            )
+        ]
+
+        for game_num, players_in_game in enumerate(all_players_in_each_game):
+            start_idx = game_num * self.players_per_team * self.teams_per_game
 
             if alternate:
                 # Divide players into teams by alternating
-                team1_players = game_players[0::2][: self.players_per_team]
-                team2_players = game_players[1::2][: self.players_per_team]
+                team1_players = players_in_game[0::2][: self.players_per_team]
+                team2_players = players_in_game[1::2][: self.players_per_team]
             else:
                 # Divide players into teams by putting 0 and 4 together, and 2 and 3 together
                 # WORKS ONLY FOR 4 PLAYERS
-                if len(game_players) == 4:
-                    team1_players = [game_players[i] for i in [0, 3]]
-                    team2_players = [game_players[i] for i in [1, 2]]
+                if len(players_in_game) == 4:
+                    team1_players = [players_in_game[i] for i in [0, 3]]
+                    team2_players = [players_in_game[i] for i in [1, 2]]
                 else:
                     print(
                         "Error: Game creation by level requires exactly 4 players per game."
@@ -826,26 +814,27 @@ class GamesRound:
 
             # Generate all possible (team1, team2) combinations as TeamOfTwo objects
             alternative_possible_teams = list(
-                combinations(game_players, self.players_per_team)
+                combinations(players_in_game, self.players_per_team)
             )
-            possible_team_pairs = []
+            possible_team_pairs_with_level_diff = []
             for team1_players in alternative_possible_teams:
                 team2_players = tuple(
-                    player for player in game_players if player not in team1_players
+                    player for player in players_in_game if player not in team1_players
                 )
                 if len(team2_players) == self.players_per_team:
                     team1 = TeamOfTwo(*team1_players)
                     team2 = TeamOfTwo(*team2_players)
                     level_diff = abs(team1.mean_level - team2.mean_level)
-                    possible_team_pairs.append((team1, team2, level_diff))
+                    possible_team_pairs_with_level_diff.append(
+                        (team1, team2, level_diff)
+                    )
 
             # Sort by difference of levels
-            possible_team_pairs.sort(key=lambda x: x[2])
-
+            possible_team_pairs_with_level_diff.sort(key=lambda x: x[2])
             # Pick the first one where neither team was in previous_teams
             found = False
             prev_team_sets = [team.players for team in self.previous_teams]
-            for team1, team2, _ in possible_team_pairs:
+            for team1, team2, _ in possible_team_pairs_with_level_diff:
                 if (
                     team1.players not in prev_team_sets
                     and team2.players not in prev_team_sets
@@ -855,67 +844,9 @@ class GamesRound:
                     break
             else:
                 # fallback: just use the first possible pair
-                team1_obj, team2_obj, _ = possible_team_pairs[0]
+                team1_obj, team2_obj, _ = possible_team_pairs_with_level_diff[0]
             team1_players = list(team1_obj.players)
             team2_players = list(team2_obj.players)
-
-            if (
-                len(team1_players) == self.players_per_team
-                and len(team2_players) == self.players_per_team
-            ):
-                team1 = TeamOfTwo(*team1_players)
-                team2 = TeamOfTwo(*team2_players)
-                game = GameOfFour(team1, team2, preference=self.preference)
-                self.games.append(game)
-                game.update_players_happiness(self.session_median_level)
-
-        # Create remaining games with mixed levels or low levels
-        remaining_players = (
-            high_level_players[
-                high_level_games_count * self.players_per_team * self.teams_per_game :
-            ]
-            + low_level_players
-        )
-
-        # Sort remaining players by level
-        remaining_players.sort(key=lambda p: p.level, reverse=True)
-
-        # Create mixed games
-        for i in range(high_level_games_count, self.amount_of_games):
-            start_idx = (
-                (i - high_level_games_count)
-                * self.players_per_team
-                * self.teams_per_game
-            )
-            if start_idx >= len(remaining_players):
-                break
-
-            game_players = remaining_players[
-                start_idx : start_idx + (self.players_per_team * self.teams_per_game)
-            ]
-            if len(game_players) < self.players_per_team * self.teams_per_game:
-                break
-
-            # Divide players into teams by alternating
-            team1_players = game_players[0::2][: self.players_per_team]
-            team2_players = game_players[1::2][: self.players_per_team]
-            alternative_possible_teams = list(
-                combinations(game_players, self.players_per_team)
-            )
-            max_iter = len(alternative_possible_teams)
-            iter = 0
-            while (
-                (
-                    set(team1_players) in [team.players for team in self.previous_teams]
-                    or set(team2_players)
-                    in [team.players for team in self.previous_teams]
-                )
-            ) and iter < max_iter:
-                team1_players = alternative_possible_teams[iter]
-                team2_players = [
-                    player for player in game_players if player not in team1_players
-                ]
-                iter += 1
 
             if (
                 len(team1_players) == self.players_per_team
@@ -1081,6 +1012,16 @@ class SessionOfRounds:
             for player in self.players:
                 player.temp_boost = 1.0
         self.rounds = rounds
+        self.mean_happiness = np.mean([player.happiness for player in self.players])
+        self.max_and_min_happiness = (
+            np.max([player.happiness for player in self.players]),
+            np.min([player.happiness for player in self.players]),
+        )
+        self.max_happiness_difference = (
+            self.max_and_min_happiness[0] - self.max_and_min_happiness[1]
+        )
+        self.std_happiness = np.std([player.happiness for player in self.players])
+        #####ADDD THE COUNT OF PLAYERS THAT PLAYED TOGETHER AT LEAST TWICE AND SO ON, REPLACE FROM PRINT_ALL_RESULTS#####
 
     def print_all_results(self, print_levels=True, order_num_list=None):
         import pyperclip
@@ -1114,6 +1055,9 @@ class SessionOfRounds:
                             output.append(
                                 f"name : {player.name}, level : {player.level}"
                             )
+                        output.append(
+                            f"level difference : {np.round(game.level_difference, 2)}"
+                        )
                 j += 1
             output.append(f"{i} " * 8 + "ROUND END " + f"{i} " * 8)
             output.append("\n\n\n")

@@ -102,7 +102,7 @@ def char_to_list(my_char):
     if my_char == "0":
         return [" #### ", "#   ##", "#  # #", "# #  #", " #### "]
     if my_char == "1":
-        return ["  ## ", " # # ", "   # ", "   # ", " #####"]
+        return ["  ##  ", " # #  ", "   #  ", "   #  ", " #####"]
     if my_char == "2":
         return [" #### ", "#    #", "   ## ", " ##   ", "######"]
     if my_char == "3":
