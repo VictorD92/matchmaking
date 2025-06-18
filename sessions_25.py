@@ -1222,14 +1222,66 @@ df = main.main_df.loc[
 # %%
 reload(main)
 
-first_seed = 1
-for seed in range(first_seed, 6):
+
+list_of_players = [main.Player(df.loc[name]) for name in df.index]
+session_of_rounds = main.SessionOfRounds(
+    list_of_players,
+    amount_of_rounds=4,
+    preferences=["balanced", "balanced", "level", "level"],
+    level_gap_tol=0.3,
+    num_iter=100,
+    seed=1,
+)
+
+
+# %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+# %%
+################################################################################
+################################################################################
+################################################################################
+################################               #################################
+################################   ##    ####  #################################
+################################  # #   #    # #################################
+################################    #    ####  #################################
+################################    #   #    # #################################
+################################  #####  ####  #################################
+################################               #################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+# %%
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "David",
+        "Marc",
+        "Anyel",
+        "Sarah",
+        "Aliénor",
+        "Jérémy",
+        "VictorDi",
+        "Colin",
+    ]
+].copy()
+# %%
+reload(main)
+
+first_seed = 3
+last_seed = 10
+for seed in range(first_seed, last_seed):
     print(f"Seed: {seed}")
     list_of_players = [main.Player(df.loc[name]) for name in df.index]
     temp_session_of_rounds = main.SessionOfRounds(
         list_of_players,
         amount_of_rounds=4,
-        preferences=["balanced", "balanced", "level", "level"],
+        preferences=[
+            "level",
+            "level",
+            "balanced",
+            "balanced",
+        ],
         level_gap_tol=0.3,
         num_iter=100,
         seed=seed,
@@ -1240,11 +1292,11 @@ for seed in range(first_seed, 6):
         seed == first_seed
         or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
     ):
+        chosen_seed = seed
         session_of_rounds = temp_session_of_rounds
 
-
+print(f"Chosen seed: {chosen_seed}")
 # %%
-session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
-# %%
+session_of_rounds.print_all_results(print_levels=False, order_num_list=[3, 4, 1, 2])
 
 # %%

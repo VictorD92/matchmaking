@@ -102,7 +102,7 @@ def char_to_list(my_char):
     if my_char == "0":
         return [" #### ", "#   ##", "#  # #", "# #  #", " #### "]
     if my_char == "1":
-        return ["  ##  ", " # #  ", "   #  ", "   #  ", " #####"]
+        return ["  ##  ", " #  # ", "    # ", "    # ", " ######"]
     if my_char == "2":
         return [" #### ", "#    #", "   ## ", " ##   ", "######"]
     if my_char == "3":
@@ -159,8 +159,8 @@ def str_to_ascii(string_to_convert):
     if line_length > 79:
         print("texte trop long!")
 
-    left_hashtags = int(math.floor((line_length - len(list_of_lines[n])) / 2))
-    right_hashtags = int(math.ceil((line_length - len(list_of_lines[n])) / 2))
+    left_hashtags = int(math.floor((line_length - len(list_of_lines[4])) / 2))
+    right_hashtags = int(math.ceil((line_length - len(list_of_lines[4])) / 2))
 
     str_out = (
         "#" * line_length
