@@ -183,7 +183,7 @@ df_minimal_example["Level"].unique()
 # %%
 
 
-main_df = pd.read_excel("Adhésion au GRNA 2024-2025 (Responses).xlsx")
+main_df = pd.read_excel("Adhésion au GRNA 2025-2026 (Responses).xlsx")
 level_df = pd.read_excel("4_Niveau.xlsx")
 
 for data_frame in [main_df, level_df]:
@@ -203,8 +203,16 @@ for data_frame in [main_df, level_df]:
                 temp_surname_2 = temp_surname_2[1:]
 
     data_frame.set_index("PrénomNom", inplace=True)
+for ind in level_df.index:
+    if ind not in main_df.index:
+        print(f"Could not find {ind} in main_df, adding it")
+        main_df.loc[ind] = 0
+        for col in main_df.columns:
+            if col in level_df.columns:
+                main_df.loc[ind, col] = level_df.loc[ind, col]
 
-main_fd = main_df.loc[level_df.index]
+
+main_df = main_df.loc[level_df.index]
 
 main_df["Niveau"] = level_df["Niveau moyenné"]
 main_df.dropna(axis=0, subset=["Niveau"], inplace=True)
@@ -272,7 +280,10 @@ for col in true_dtypes.keys():
     if true_dtypes[col] == datetime.datetime:
         main_df[col] = pd.to_datetime(main_df[col])
     else:
-        main_df[col] = main_df[col].astype(true_dtypes[col])
+        try:
+            main_df[col] = main_df[col].astype(true_dtypes[col])
+        except Exception:
+            print(f"Could not convert column {col} to {true_dtypes[col]}")
 
 # setting default category as level
 main_df["Category"] = main_df["Level"]
@@ -343,24 +354,33 @@ class Player:
         # we also created a rounded noisy level, to avoid too many categories of levels
         # default is the level of the player
         self.rounded_noisy_level = series["Level"]
+        self.happiness = series.get("Happiness", 0)
+        self.previous_happiness = self.happiness  # <-- Add this line
 
     def update_happiness(
-        self, game_mean_level, teammates_levels, opponents_levels, session_median
+        self,
+        game_mean_level,
+        teammates_levels,
+        opponents_levels,
+        session_median,
+        same_teammate=False,
     ):
 
         # More nuanced happiness calculation for higher level players
         high_level_teammates = sum(
-            1 for level in teammates_levels if level >= self.level * 0.9
+            1 for level in teammates_levels if level >= (self.level - 0.5)
         )
         high_level_opponents = sum(
-            1 for level in opponents_levels if level >= self.level * 0.9
+            1 for level in opponents_levels if level >= (self.level - 0.5)
         )
 
         # Higher level players are happier with competitive matches
         self.happiness += high_level_teammates + high_level_opponents
 
         # Penalize if consistently playing with much lower level players
-        if np.mean(teammates_levels + opponents_levels) < self.level * 0.5:
+        # if np.mean(teammates_levels + opponents_levels) < (self.level - 0.5):
+        #     self.happiness -= 1
+        if same_teammate:
             self.happiness -= 1
 
 
@@ -479,19 +499,27 @@ class GameOfFour:
             abs(self.team_A_mean_level - self.team_B_mean_level), 2
         )
 
-    def update_players_happiness(self, session_median_level):
-        """Update happiness for all players in the game"""
+    def update_players_happiness(self, session_median_level, teammate_history):
+        """Update happiness for all players in the game, with penalty for repeated teammates"""
         for team in [self.team_A, self.team_B]:
-            for player in team.players:
-                teammates_levels = [p.level for p in team.players if p != player]
+            players = list(team.players)
+            for i, player in enumerate(players):
+                teammates_levels = [p.level for j, p in enumerate(players) if j != i]
                 other_team = self.team_B if team == self.team_A else self.team_A
                 opponents_levels = [p.level for p in other_team.players]
+                same_teammate = any(
+                    frozenset([player.name, teammate.name]) in teammate_history
+                    for teammate in team.players
+                    if teammate != player
+                )
                 player.update_happiness(
                     self.overall_mean_level,
                     teammates_levels,
                     opponents_levels,
                     session_median_level,
+                    same_teammate=same_teammate,
                 )
+                # Penalize if this pair has already played together
 
 
 # %% Example usage of the GameOfFour class
@@ -569,7 +597,6 @@ class GamesRound:
                         [p.name for p in team.players], 2
                     ):
                         self.teammate_history.append(frozenset([player1, player2]))
-
         self.games = []
         self.session_median_level = np.median(
             [player.level for player in list_of_players]
@@ -644,11 +671,12 @@ class GamesRound:
         # if preference is none, we create random games, trying not to recreate the same games
         if isinstance(self.preference, dict):
             preference_type = self.preference.get("type")
+            kwargs = self.preference.get("kwargs")
         else:
             preference_type = self.preference
+            kwargs = {}
         if self.preference == None:
             pass
-
         if preference_type == "balanced":
 
             # we create the games
@@ -660,7 +688,9 @@ class GamesRound:
                         if people
                         not in set().union(*{game.participants for game in self.games})
                     ]
-                    self.games.append(self.create_balanced_game(people_left_to_play))
+                    self.games.append(
+                        self.create_balanced_game(people_left_to_play, **kwargs)
+                    )
 
                 if (
                     max([game.level_difference for game in self.games])
@@ -678,17 +708,12 @@ class GamesRound:
                 print("could not find a game, because the tolerance is too low")
 
         if preference_type == "level":
-            if isinstance(self.preference, dict):
-                kwargs = self.preference.get("kwargs")
-            else:
-                kwargs = {}
             self.create_games_by_level(**kwargs)
         self.teams = set()
         for game in self.games:
             self.teams = self.teams.union(game.teams)
 
-    def create_balanced_game(self, people_left_to_play):
-
+    def create_balanced_game(self, people_left_to_play, mixed=False, **kwargs):
         available_players = list(people_left_to_play)
         if len(available_players) < self.teams_per_game * self.players_per_team:
             return "could not find a game, because there are not enough players"
@@ -696,16 +721,13 @@ class GamesRound:
         best_game = None
         best_happiness_score = -1
 
-        # Track level gap tolerance for this call only (no recursion)
         current_gap_tol = self.level_gap_tol
-        max_attempts = 3  # Limit the number of tolerance increases
+        max_attempts = 3
 
         for attempt in range(max_attempts):
-            # Try iterations with current tolerance
-            for _ in range(self.num_iter):  # Reduced from 50
+            for _ in range(self.num_iter):
                 random.shuffle(available_players)
                 teams = []
-
                 for i in range(
                     0,
                     self.teams_per_game * self.players_per_team,
@@ -715,54 +737,41 @@ class GamesRound:
                     team = TeamOfTwo(*team_players)
                     teams.append(team)
 
-                # Create game
                 game = GameOfFour(*teams, preference=self.preference)
 
-                # Only consider games with acceptable level difference
                 if game.level_difference <= current_gap_tol:
-                    # Calculate happiness score with fairness across all players
-                    happiness_score = sum(
-                        max(0, game.overall_mean_level - player.level) * 2
-                        for team in teams
-                        for player in team.players
-                        if player.level < self.session_median_level
-                    )
-                    # Add happiness consideration for higher-level players too
-                    happiness_score += sum(
-                        max(0, player.level - game.overall_mean_level) * 2
-                        for team in teams
-                        for player in team.players
-                        if player.level >= self.session_median_level
-                    )
-                    # Factor in current happiness state to prioritize less happy players
-                    happiness_score += sum(
-                        5
-                        / (
-                            player.happiness + 1
-                        )  # Higher weight for players with lower happiness
-                        for team in teams
-                        for player in team.players
+                    # --- Save previous happiness ---
+                    for team in teams:
+                        for player in team.players:
+                            player.previous_happiness = player.happiness
+
+                    # --- Simulate happiness update ---
+                    game.update_players_happiness(
+                        self.session_median_level, self.teammate_history
                     )
 
-                    # Keep the game with highest happiness score
+                    # --- Calculate happiness score ---
+                    happiness_score = sum(
+                        player.happiness for team in teams for player in team.players
+                    )
+
+                    # --- Revert happiness ---
+                    for team in teams:
+                        for player in team.players:
+                            player.happiness = player.previous_happiness
+
                     if happiness_score > best_happiness_score:
                         best_happiness_score = happiness_score
                         best_game = game
 
-            if best_game:
-                # We found a good game with current tolerance
-                break
-
-            # Increase tolerance and try again
-            current_gap_tol += 0.5
-
-        # If we found a game, update happiness just once at the end
         if best_game:
+            best_game.update_players_happiness(
+                self.session_median_level, self.teammate_history
+            )
             return best_game
         else:
-            # Create any valid game as fallback
+            # fallback: just create a random game
             random.shuffle(available_players)
-            # print("shuffled players:", [player.name for player in available_players])
             teams = []
             for i in range(
                 0, self.teams_per_game * self.players_per_team, self.players_per_team
@@ -770,11 +779,10 @@ class GamesRound:
                 team_players = available_players[i : i + self.players_per_team]
                 team = TeamOfTwo(*team_players)
                 teams.append(team)
-
             game = GameOfFour(*teams, preference=self.preference)
             return game
 
-    def create_games_by_level(self, alternate=False):
+    def create_games_by_level(self, alternate=False, mixed=False, **kwargs):
 
         sorted_players = sorted(
             self.people_playing,
@@ -856,7 +864,9 @@ class GamesRound:
                 team2 = TeamOfTwo(*team2_players)
                 game = GameOfFour(team1, team2, preference=self.preference)
                 self.games.append(game)
-                game.update_players_happiness(self.session_median_level)
+                game.update_players_happiness(
+                    self.session_median_level, self.teammate_history
+                )
 
 
 # %%
@@ -904,7 +914,7 @@ if __name__ == "__main__":
 #  ###### ####### ####### ####### ####### ######  ####### #     # ##    # #####    ###### #
 # #       #          #    #     # #       #     # #     # #     # # #   # #    #  #       #
 #  ####   #######    #    #     # #####   ######  #     # #     # #  #  # #     #  ####   #
-#       # #          #    #     # #       #   ##  #     # #     # #   # # #    #        # #
+#       # #     #    #    #     # #       #   ##  #     # #     # #   # # #    #        # #
 # ######  #######    #    ####### #       #    ## ####### ####### #    ## #####   ######  #
 #                                                                                         #
 ###########################################################################################
