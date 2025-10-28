@@ -1601,7 +1601,7 @@ print(f"Chosen seed: {chosen_seed}")
 # %%
 session_of_rounds.print_all_results(print_levels=False, order_num_list=[3, 4, 1, 2])
 # %%
-#%%
+# %%
 ################################################################################
 ###############################                 ################################
 ###############################  #####   #####  ################################
@@ -1621,14 +1621,13 @@ df = main.main_df.loc[
         "Dominik",
         "Florian1",
         "Marco",
-        "Colin",
         "Florian2",
         "VictorDi",
         "Luciano",
         "Gabriel",
         "Sarah",
         "David",
-        "Anyel"
+        "Anyel",
     ]
 ]
 # %%
@@ -1636,7 +1635,15 @@ reload(main)
 first_seed = 3
 last_seed = 10
 for seed in range(first_seed, last_seed):
-    print(f"Seed: {seed}")
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
     list_of_players = [main.Player(df.loc[name]) for name in df.index]
     temp_session_of_rounds = main.SessionOfRounds(
         list_of_players,
@@ -1647,12 +1654,115 @@ for seed in range(first_seed, last_seed):
             "balanced",
             "balanced",
         ],
-        level_gap_tol=0.5,
+        level_gap_tol=0.8,
         num_iter=100,
         seed=seed,
     )
+    print(
+        "##################################### STATS ####################################"
+    )
     print("current mean happiness:", temp_session_of_rounds.mean_happiness)
     print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
+    if (
+        seed == first_seed
+        or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
+    ):
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+print(f"Chosen seed: {chosen_seed}")
+# %%
+
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+
+# %%
+# %%
+################################################################################
+###############################                 ################################
+###############################  #####  #    #  ################################
+############################### #     # #    #  ################################
+###############################     ##  ####### ################################
+###############################   ##         #  ################################
+############################### #######      #  ################################
+###############################                 ################################
+################################################################################
+# %%
+reload(main)
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "Leila",
+        "Gabriel",
+        "Sarah",
+        "Luciano",
+        "Félix",
+        "Chiara",
+        "Emile",
+        "Emma",
+    ]
+]
+plus_1_lulu = pd.Series(
+    {
+        "Name": "plus_1_lulu",
+        "Level": 1,
+        "Surname": "Nosé",
+    },
+    name="plus_1_lulu",
+)
+Marius = pd.Series(
+    {
+        "Name": "Marius",
+        "Level": 2,
+        "Surname": "Moulin",
+    },
+    name="Marius",
+)
+# %%
+df = pd.concat([df, pd.DataFrame([plus_1_lulu, Marius])])
+df["Happiness"] = 0
+# %%
+reload(main)
+first_seed = 3
+last_seed = 10
+
+for seed in range(first_seed, last_seed):
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        preferences=[
+            "level",
+            "level",
+            "balanced",
+            "balanced",
+        ],
+        level_gap_tol=0.8,
+        num_iter=100,
+        seed=seed,
+    )
+    print(
+        "##################################### STATS ####################################"
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
     if (
         seed == first_seed
         or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
@@ -1662,5 +1772,330 @@ for seed in range(first_seed, last_seed):
 print(f"Chosen seed: {chosen_seed}")
 # %%
 session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+# %%
+# %%
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+#################                                              #################
+#################   ##   ####      ####   ####   ####  #####  #################
+#################  # #  #   ##    #    # #   ## #    # #      #################
+#################    #  #  # #       ##  #  # #    ##  #####  #################
+#################    #  # #  #     ##    # #  #  ##        #  #################
+#################  #####  ####  ## ######  ####  ###### #####  #################
+#################                                              #################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+# %%
+################################################################################
+################################################################################
+################################################################################
+################################               #################################
+################################  ####  #####  #################################
+################################ #   ##     #  #################################
+################################ #  # #    #   #################################
+################################ # #  #   #    #################################
+################################  ####   #     #################################
+################################               #################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+reload(main)
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "David",
+        "Gabriel",
+        "Luciano",
+        "FlorianB",
+        "Angela",
+        "Dominik",
+        "Anyel",
+        "Enzo",
+        "Sarah",
+        "Jérémy",
+        "FlorianD",
+        "Aliénor",
+        "Leila",
+        "Leo",
+        "Colin",
+        "Félix",
+    ]
+]
+patrick = pd.Series(
+    {
+        "Name": "Patrick",
+        "Level": 2,
+        "Surname": "Nosé",
+    },
+    name="Patrick",
+)
+# %%
+df = pd.concat([df, pd.DataFrame([patrick])])
+df["Happiness"] = 0
+# %%
+reload(main)
+first_seed = 3
+last_seed = 10
+for seed in range(first_seed, last_seed):
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        preferences=[
+            "level",
+            "level",
+            "balanced",
+            "balanced",
+        ],
+        level_gap_tol=0.8,
+        num_iter=100,
+        seed=seed,
+    )
+    print(
+        "##################################### STATS ####################################"
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
+    if (
+        seed == first_seed
+        or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
+    ):
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+print(f"Chosen seed: {chosen_seed}")
+# %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+# %%
 
+
+################################################################################
+################################################################################
+################################################################################
+################################               #################################
+################################   ##  #   #  #################################
+################################  # #  #   #  #################################
+################################    #  #####  #################################
+################################    #      #  #################################
+################################  #####     #  #################################
+################################               #################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+
+
+reload(main)
+df = main.main_df.loc[
+    [
+        "Flavien",
+        "Emile",
+        "Sarah",
+        "FlorianB",
+        "Gabriel",
+        "Dominik",
+        "Luciano",
+        "VictorDi",
+        "Félix",
+        "Anyel",
+        "Angela",
+        "Aliénor",
+        "Enzo",
+        "Leo",
+        "Leila",
+        "Colin",
+        "David",
+        "FlorianD",
+    ]
+]
+alissa = pd.Series(
+    {
+        "Name": "Alissa",
+        "Level": 1.7,
+        "Surname": "Nosé",
+    },
+    name="Alissa",
+)
+# %%
+df = pd.concat([df, pd.DataFrame([alissa])])
+df["Happiness"] = 0
+# %%
+reload(main)
+first_seed = 3
+last_seed = 10
+for seed in range(first_seed, last_seed):
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        preferences=[
+            "level",
+            "level",
+            "balanced",
+            "balanced",
+        ],
+        level_gap_tol=0.8,
+        num_iter=100,
+        seed=seed,
+    )
+    print(
+        "##################################### STATS ####################################"
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
+    if (
+        seed == first_seed
+        or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
+    ):
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+print(f"Chosen seed: {chosen_seed}")
+# %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[3, 4, 1, 2])
+# %%
+# %%
+################################################################################
+################################################################################
+################################################################################
+################################               #################################
+################################  ####   ####  #################################
+################################ #    # #    # #################################
+################################    ##   ####  #################################
+################################  ##    #    # #################################
+################################ ######  ####  #################################
+################################               #################################
+################################################################################
+################################################################################
+################################################################################
+# %%
+reload(main)
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "David",
+        "Félix",
+        "FlorianB",
+        "Leila",
+        "Dominik",
+        "Angela",
+        "Colin",
+        "Leo",
+        "FlorianD",
+        "Sarah",
+    ]
+]
+alissa = pd.Series(
+    {
+        "Name": "Alissa",
+        "Level": 1.7,
+        "Surname": "Nosé",
+    },
+    name="Alissa",
+)
+plus_1_david = pd.Series(
+    {
+        "Name": "plus_1_david",
+        "Level": 2,
+        "Surname": "Nosé",
+    },
+    name="plus_1_david",
+)
+Vasco = pd.Series(
+    {
+        "Name": "Vasco",
+        "Level": 1.5,
+        "Surname": "Nosé",
+    },
+    name="Vasco",
+)
+# %%
+df = pd.concat([df, pd.DataFrame([alissa, plus_1_david, Vasco])])
+df["Happiness"] = 0
+df["Games played"] = 0
+# %%
+reload(main)
+first_seed = 3
+last_seed = 10
+for seed in range(first_seed, last_seed):
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        preferences=[
+            "balanced",
+            "balanced",
+            "level",
+            "level",
+        ],
+        level_gap_tol=0.8,
+        num_iter=100,
+        seed=seed,
+    )
+    print(
+        "##################################### STATS ####################################"
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
+    if (
+        seed == first_seed
+        or temp_session_of_rounds.std_happiness < session_of_rounds.std_happiness
+    ):
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+print("\033[92mDONE\033[0m")
+# %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 3, 2, 4])
 # %%

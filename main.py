@@ -368,17 +368,17 @@ class Player:
 
         # More nuanced happiness calculation for higher level players
         high_level_teammates = sum(
-            1 for level in teammates_levels if level >= (self.level - 0.5)
+            1 for level in teammates_levels if level >= (self.level * 0.85)
         )
         high_level_opponents = sum(
-            1 for level in opponents_levels if level >= (self.level - 0.5)
+            1 for level in opponents_levels if level >= (self.level * 0.85)
         )
 
         # Higher level players are happier with competitive matches
         self.happiness += high_level_teammates + high_level_opponents
 
         # Penalize if consistently playing with much lower level players
-        # if np.mean(teammates_levels + opponents_levels) < (self.level - 0.5):
+        # if np.mean(teammates_levels + opponents_levels) < (self.level * 0.85):
         #     self.happiness -= 1
         if same_teammate:
             self.happiness -= 1
@@ -1031,7 +1031,62 @@ class SessionOfRounds:
             self.max_and_min_happiness[0] - self.max_and_min_happiness[1]
         )
         self.std_happiness = np.std([player.happiness for player in self.players])
-        #####ADDD THE COUNT OF PLAYERS THAT PLAYED TOGETHER AT LEAST TWICE AND SO ON, REPLACE FROM PRINT_ALL_RESULTS#####
+        
+
+#%%
+################################################################################
+#####                                                                      #####
+##### ####### ######  ####### ##    # #######       #####  #     # #     # #####
+##### #     # #     #    #    # #   #    #         #     # #     #  #   #  #####
+##### ####### ######     #    #  #  #    #         ####### #     #    #    #####
+##### #       #   ##     #    #   # #    #         #     # #     #  #   #  #####
+##### #       #    ## ####### #    ##    #         #     # ####### #     # #####
+#####                                                                      #####
+################################################################################
+
+    def count_all_pairs(self,order_num_list=None):
+        # Find and display players who played at least twice with each other and record the rounds
+        player_pairs = {}
+        pair_rounds = {}
+        # Use the possibly reordered rounds for analysis
+        round_copy = self.rounds.copy()
+        if order_num_list is not None:
+            round_copy = [round_copy[i - 1] for i in order_num_list]
+        for round_index, round in enumerate(round_copy, start=1):
+            for game in round.games:
+                for team in game.teams:
+                    for player_a, player_b in combinations(team.players, 2):
+                        pair = frozenset([player_a.name, player_b.name])
+                        player_pairs[pair] = player_pairs.get(pair, 0) + 1
+                        if pair not in pair_rounds:
+                            pair_rounds[pair] = []
+                        pair_rounds[pair].append(round_index)
+        return player_pairs, pair_rounds
+    
+    def add_team_repetition_to_output(self, output, player_pairs, pair_rounds, minimum = 2):
+        teams_to_repetitions = {}
+        output.append(
+            f"\n#######PLAYERS WHO PLAYED TOGETHER AT LEAST {minimum} TIMES #######"
+        )
+        for pair, count in player_pairs.items():
+            if count >= minimum:
+                rounds = ", ".join(map(str, pair_rounds[pair]))
+                output.append(
+                    f"{', '.join(pair)} played together {count} times in rounds: {rounds}"
+                )
+                teams_to_repetitions[pair] = count
+        return output, teams_to_repetitions
+    
+#%%
+################################################################################
+#                                                                              #
+# ####### ######  ####### ##    # #######      #     #  #####  ####### ##    # #
+# #     # #     #    #    # #   #    #         ##   ## #     #    #    # #   # #
+# ####### ######     #    #  #  #    #         #  #  # #######    #    #  #  # #
+# #       #   ##     #    #   # #    #         #     # #     #    #    #   # # #
+# #       #    ## ####### #    ##    #         #     # #     # ####### #    ## #
+#                                                                              #
+################################################################################
 
     def print_all_results(self, print_levels=True, order_num_list=None):
         import pyperclip
@@ -1078,33 +1133,10 @@ class SessionOfRounds:
             output.append(
                 f"{player.name} played {player.games_played} games, happiness: {np.round(player.happiness, 2)}"
             )
+        #####ADDD THE COUNT OF PLAYERS THAT PLAYED TOGETHER AT LEAST TWICE AND SO ON, REPLACE FROM PRINT_ALL_RESULTS#####
+        player_pairs, pair_rounds = self.count_all_pairs(order_num_list)
 
-        # Find and display players who played at least twice with each other and record the rounds
-        player_pairs = {}
-        pair_rounds = {}
-        # Use the possibly reordered rounds for analysis
-        round_copy = self.rounds.copy()
-        if order_num_list is not None:
-            round_copy = [round_copy[i - 1] for i in order_num_list]
-        for round_index, round in enumerate(round_copy, start=1):
-            for game in round.games:
-                for team in game.teams:
-                    for player_a, player_b in combinations(team.players, 2):
-                        pair = frozenset([player_a.name, player_b.name])
-                        player_pairs[pair] = player_pairs.get(pair, 0) + 1
-                        if pair not in pair_rounds:
-                            pair_rounds[pair] = []
-                        pair_rounds[pair].append(round_index)
-
-        output.append(
-            "\n##########PLAYERS WHO PLAYED TOGETHER AT LEAST TWICE##########"
-        )
-        for pair, count in player_pairs.items():
-            if count >= 2:
-                rounds = ", ".join(map(str, pair_rounds[pair]))
-                output.append(
-                    f"{', '.join(pair)} played together {count} times in rounds: {rounds}"
-                )
+        output, _ = self.add_team_repetition_to_output(output,player_pairs, pair_rounds, minimum=2)
         # Find and display players who played against each other at least twice and record the rounds
         opponent_pairs = {}
         opponent_pair_rounds = {}
