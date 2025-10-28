@@ -2023,14 +2023,6 @@ df = main.main_df.loc[
         "Sarah",
     ]
 ]
-alissa = pd.Series(
-    {
-        "Name": "Alissa",
-        "Level": 1.7,
-        "Surname": "Nosé",
-    },
-    name="Alissa",
-)
 plus_1_david = pd.Series(
     {
         "Name": "plus_1_david",
@@ -2047,8 +2039,16 @@ Vasco = pd.Series(
     },
     name="Vasco",
 )
+ana = pd.Series(
+    {
+        "Name": "Ana",
+        "Level": 3.5,
+        "Surname": "Nosé",
+    },
+    name="Ana",
+)
 # %%
-df = pd.concat([df, pd.DataFrame([alissa, plus_1_david, Vasco])])
+df = pd.concat([df, pd.DataFrame([ana, plus_1_david, Vasco])])
 df["Happiness"] = 0
 df["Games played"] = 0
 # %%
@@ -2097,5 +2097,5 @@ for seed in range(first_seed, last_seed):
         session_of_rounds = temp_session_of_rounds
 print("\033[92mDONE\033[0m")
 # %%
-session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 3, 2, 4])
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 4, 2, 3])
 # %%
