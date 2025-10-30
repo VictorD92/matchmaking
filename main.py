@@ -185,8 +185,8 @@ df_minimal_example["Level"].unique()
 
 main_df = pd.read_excel("Adhésion au GRNA 2025-2026 (Responses).xlsx")
 level_df = pd.read_excel("4_Niveau.xlsx")
-
-for data_frame in [main_df, level_df]:
+spectrum_df = pd.read_excel("spectre.xlsx")
+for data_frame in [main_df, level_df, spectrum_df]:
     data_frame["PrénomNom"] = data_frame["Prénom"].apply(
         lambda x: re.sub(" ", "", x).capitalize()
     )
@@ -295,6 +295,10 @@ main_df["Games played"] = 0
 # setting default Noisy level to 0
 main_df["Noisy level"] = 0
 
+main_df[["Masochiste", "Équilibré", "Challenger", "Chill", "Sadique"]] = spectrum_df[
+    ["Masochiste", "Équilibré", "Challenger", "Chill", "Sadique"]
+].fillna(0)
+
 # %%
 example_df = main_df.iloc[3:18]
 short_example_df = main_df.loc[["VictorDa", "David", "Enzo", "Anyel", "Nolan"]]
@@ -356,30 +360,65 @@ class Player:
         self.rounded_noisy_level = series["Level"]
         self.happiness = series.get("Happiness", 0)
         self.previous_happiness = self.happiness  # <-- Add this line
+        self.maso = series.get("Masochiste", 0)
+        self.equilibre = series.get("Équilibré", 0)
+        self.challenger = series.get("Challenger", 0)
+        self.chill = series.get("Chill", 0)
+        self.sadique = series.get("Sadique", 0)
+        self.games_played = series.get("Games played", 0)
 
     def update_happiness(
         self,
         game_mean_level,
         teammates_levels,
         opponents_levels,
+        level_gap_tol,
+        players_chill,
         session_median,
         same_teammate=False,
+        spectrum=False,
     ):
+        if spectrum:
+            team_level = np.mean(teammates_levels + [self.level])
+            opponents_mean_level = np.mean(opponents_levels)
+            normalization_factor = sum(
+                [self.maso, self.equilibre, self.challenger, self.chill, self.sadique]
+            )
+            temp_hapiness = 0
+            temp_hapiness += self.maso * (
+                1 if np.mean(opponents_levels) >= 0.7 * self.level else 0
+            )
+            temp_hapiness += self.equilibre * (
+                1
+                if abs(team_level - opponents_mean_level) <= 0.5 * level_gap_tol
+                else 0
+            )
+            temp_hapiness += self.challenger * (
+                1
+                if abs(0.9 * opponents_mean_level - team_level) <= 0.5 * level_gap_tol
+                else 0
+            )
+            temp_hapiness += self.chill * (1 if players_chill >= 10 else 0)
+            temp_hapiness += self.sadique * (
+                1 if np.mean(opponents_levels) <= team_level else 0
+            )
+            self.happiness += temp_hapiness / normalization_factor
+            self.happiness = round(self.happiness, 2)
+        else:
+            # More nuanced happiness calculation for higher level players
+            high_level_teammates = sum(
+                1 for level in teammates_levels if level >= (self.level * 0.85)
+            )
+            high_level_opponents = sum(
+                1 for level in opponents_levels if level >= (self.level * 0.85)
+            )
 
-        # More nuanced happiness calculation for higher level players
-        high_level_teammates = sum(
-            1 for level in teammates_levels if level >= (self.level * 0.85)
-        )
-        high_level_opponents = sum(
-            1 for level in opponents_levels if level >= (self.level * 0.85)
-        )
+            # Higher level players are happier with competitive matches
+            self.happiness += high_level_teammates + high_level_opponents
 
-        # Higher level players are happier with competitive matches
-        self.happiness += high_level_teammates + high_level_opponents
-
-        # Penalize if consistently playing with much lower level players
-        # if np.mean(teammates_levels + opponents_levels) < (self.level * 0.85):
-        #     self.happiness -= 1
+            # Penalize if consistently playing with much lower level players
+            # if np.mean(teammates_levels + opponents_levels) < (self.level * 0.85):
+            #     self.happiness -= 1
         if same_teammate:
             self.happiness -= 1
 
@@ -499,7 +538,9 @@ class GameOfFour:
             abs(self.team_A_mean_level - self.team_B_mean_level), 2
         )
 
-    def update_players_happiness(self, session_median_level, teammate_history):
+    def update_players_happiness(
+        self, session_median_level, level_gap_tol, spectrum, teammate_history
+    ):
         """Update happiness for all players in the game, with penalty for repeated teammates"""
         for team in [self.team_A, self.team_B]:
             players = list(team.players)
@@ -512,12 +553,16 @@ class GameOfFour:
                     for teammate in team.players
                     if teammate != player
                 )
+                total_players_chill = sum(p.chill for p in players)
                 player.update_happiness(
-                    self.overall_mean_level,
-                    teammates_levels,
-                    opponents_levels,
-                    session_median_level,
+                    game_mean_level=self.overall_mean_level,
+                    teammates_levels=teammates_levels,
+                    opponents_levels=opponents_levels,
+                    level_gap_tol=level_gap_tol,
+                    players_chill=total_players_chill,
+                    session_median=session_median_level,
                     same_teammate=same_teammate,
+                    spectrum=spectrum,
                 )
                 # Penalize if this pair has already played together
 
@@ -559,9 +604,10 @@ class GamesRound:
         players_per_team=2,
         amount_of_games=None,
         preference=None,
-        num_iter=1000,
+        num_iter=40,
         level_gap_tol=0.5,
         seed=None,
+        spectrum=False,
     ):
 
         if seed is not None:
@@ -587,6 +633,7 @@ class GamesRound:
         self.players_per_team = players_per_team
         self.num_iter = num_iter
         self.level_gap_tol = level_gap_tol
+        self.spectrum = spectrum
 
         # Create a set of player pairs that have played together
         self.teammate_history = []
@@ -622,7 +669,7 @@ class GamesRound:
             )
         return set_of_all_possible_teams
 
-    def create_games(self):
+    def create_games(self, level_gap_tol=0.5, spectrum=False):
 
         ####removing players amongst the ones that had played the most##########
         # amount of players that will not play
@@ -663,6 +710,7 @@ class GamesRound:
         self.people_playing = set(list_descending_priority[amount_non_playing:])
 
         for player in self.people_playing:
+            player.previous_happiness = player.happiness
             player.games_played += 1
         ########################################################################
 
@@ -689,7 +737,12 @@ class GamesRound:
                         not in set().union(*{game.participants for game in self.games})
                     ]
                     self.games.append(
-                        self.create_balanced_game(people_left_to_play, **kwargs)
+                        self.create_balanced_game(
+                            people_left_to_play,
+                            level_gap_tol=self.level_gap_tol,
+                            spectrum=self.spectrum,
+                            **kwargs,
+                        )
                     )
 
                 if (
@@ -713,7 +766,9 @@ class GamesRound:
         for game in self.games:
             self.teams = self.teams.union(game.teams)
 
-    def create_balanced_game(self, people_left_to_play, mixed=False, **kwargs):
+    def create_balanced_game(
+        self, people_left_to_play, level_gap_tol, spectrum, mixed=False, **kwargs
+    ):
         available_players = list(people_left_to_play)
         if len(available_players) < self.teams_per_game * self.players_per_team:
             return "could not find a game, because there are not enough players"
@@ -747,7 +802,10 @@ class GamesRound:
 
                     # --- Simulate happiness update ---
                     game.update_players_happiness(
-                        self.session_median_level, self.teammate_history
+                        self.session_median_level,
+                        level_gap_tol,
+                        spectrum,
+                        self.teammate_history,
                     )
 
                     # --- Calculate happiness score ---
@@ -766,7 +824,10 @@ class GamesRound:
 
         if best_game:
             best_game.update_players_happiness(
-                self.session_median_level, self.teammate_history
+                self.session_median_level,
+                self.level_gap_tol,
+                self.spectrum,
+                self.teammate_history,
             )
             return best_game
         else:
@@ -865,7 +926,10 @@ class GamesRound:
                 game = GameOfFour(team1, team2, preference=self.preference)
                 self.games.append(game)
                 game.update_players_happiness(
-                    self.session_median_level, self.teammate_history
+                    self.session_median_level,
+                    self.level_gap_tol,
+                    self.spectrum,
+                    self.teammate_history,
                 )
 
 
@@ -930,6 +994,7 @@ class SessionOfRounds:
         preferences=[None],
         level_gap_tol=0.5,
         num_iter=40,
+        spectrum=False,
         seed=None,
     ):
         self.amount_of_rounds = amount_of_rounds
@@ -942,6 +1007,7 @@ class SessionOfRounds:
         self.players = list_of_players
         self.players_name = [player.name for player in list_of_players]
         self.rounds = []
+        self.spectrum = spectrum
 
         # reformatting preferences to the amount of preferences wanted
         if preferences is None:
@@ -1002,6 +1068,7 @@ class SessionOfRounds:
                     level_gap_tol=self.level_gap_tol,
                     num_iter=self.num_iter,
                     seed=round_seed,
+                    spectrum=self.spectrum,
                 )
             )
         # Calculate happiness inequality before each round
@@ -1031,20 +1098,19 @@ class SessionOfRounds:
             self.max_and_min_happiness[0] - self.max_and_min_happiness[1]
         )
         self.std_happiness = np.std([player.happiness for player in self.players])
-        
 
-#%%
-################################################################################
-#####                                                                      #####
-##### ####### ######  ####### ##    # #######       #####  #     # #     # #####
-##### #     # #     #    #    # #   #    #         #     # #     #  #   #  #####
-##### ####### ######     #    #  #  #    #         ####### #     #    #    #####
-##### #       #   ##     #    #   # #    #         #     # #     #  #   #  #####
-##### #       #    ## ####### #    ##    #         #     # ####### #     # #####
-#####                                                                      #####
-################################################################################
+    # %%
+    ################################################################################
+    #####                                                                      #####
+    ##### ####### ######  ####### ##    # #######       #####  #     # #     # #####
+    ##### #     # #     #    #    # #   #    #         #     # #     #  #   #  #####
+    ##### ####### ######     #    #  #  #    #         ####### #     #    #    #####
+    ##### #       #   ##     #    #   # #    #         #     # #     #  #   #  #####
+    ##### #       #    ## ####### #    ##    #         #     # ####### #     # #####
+    #####                                                                      #####
+    ################################################################################
 
-    def count_all_pairs(self,order_num_list=None):
+    def count_all_pairs(self, order_num_list=None):
         # Find and display players who played at least twice with each other and record the rounds
         player_pairs = {}
         pair_rounds = {}
@@ -1062,8 +1128,10 @@ class SessionOfRounds:
                             pair_rounds[pair] = []
                         pair_rounds[pair].append(round_index)
         return player_pairs, pair_rounds
-    
-    def add_team_repetition_to_output(self, output, player_pairs, pair_rounds, minimum = 2):
+
+    def add_team_repetition_to_output(
+        self, output, player_pairs, pair_rounds, minimum=2
+    ):
         teams_to_repetitions = {}
         output.append(
             f"\n#######PLAYERS WHO PLAYED TOGETHER AT LEAST {minimum} TIMES #######"
@@ -1076,17 +1144,17 @@ class SessionOfRounds:
                 )
                 teams_to_repetitions[pair] = count
         return output, teams_to_repetitions
-    
-#%%
-################################################################################
-#                                                                              #
-# ####### ######  ####### ##    # #######      #     #  #####  ####### ##    # #
-# #     # #     #    #    # #   #    #         ##   ## #     #    #    # #   # #
-# ####### ######     #    #  #  #    #         #  #  # #######    #    #  #  # #
-# #       #   ##     #    #   # #    #         #     # #     #    #    #   # # #
-# #       #    ## ####### #    ##    #         #     # #     # ####### #    ## #
-#                                                                              #
-################################################################################
+
+    # %%
+    ################################################################################
+    #                                                                              #
+    # ####### ######  ####### ##    # #######      #     #  #####  ####### ##    # #
+    # #     # #     #    #    # #   #    #         ##   ## #     #    #    # #   # #
+    # ####### ######     #    #  #  #    #         #  #  # #######    #    #  #  # #
+    # #       #   ##     #    #   # #    #         #     # #     #    #    #   # # #
+    # #       #    ## ####### #    ##    #         #     # #     # ####### #    ## #
+    #                                                                              #
+    ################################################################################
 
     def print_all_results(self, print_levels=True, order_num_list=None):
         import pyperclip
@@ -1114,11 +1182,16 @@ class SessionOfRounds:
                         "level_difference : "
                         + str(np.round(getattr(game, "level_difference"), 2))
                     )
+                    if print_levels:
+                        for player in game.participants:
+                            output.append(
+                                f"name : {player.name}, level : {player.level}, happiness gained : {np.round(player.happiness - getattr(player, 'previous_happiness', 0), 2)}"
+                            )
                 if print_levels:
                     if game.preference == "level":
                         for player in game.participants:
                             output.append(
-                                f"name : {player.name}, level : {player.level}"
+                                f"name : {player.name}, level : {player.level}, happiness gained : {np.round(player.happiness - getattr(player, 'previous_happiness', 0), 2)}"
                             )
                         output.append(
                             f"level difference : {np.round(game.level_difference, 2)}"
@@ -1136,7 +1209,9 @@ class SessionOfRounds:
         #####ADDD THE COUNT OF PLAYERS THAT PLAYED TOGETHER AT LEAST TWICE AND SO ON, REPLACE FROM PRINT_ALL_RESULTS#####
         player_pairs, pair_rounds = self.count_all_pairs(order_num_list)
 
-        output, _ = self.add_team_repetition_to_output(output,player_pairs, pair_rounds, minimum=2)
+        output, _ = self.add_team_repetition_to_output(
+            output, player_pairs, pair_rounds, minimum=2
+        )
         # Find and display players who played against each other at least twice and record the rounds
         opponent_pairs = {}
         opponent_pair_rounds = {}

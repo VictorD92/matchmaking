@@ -2013,7 +2013,6 @@ df = main.main_df.loc[
         "VictorDa",
         "David",
         "Félix",
-        "FlorianB",
         "Leila",
         "Dominik",
         "Angela",
@@ -2095,7 +2094,57 @@ for seed in range(first_seed, last_seed):
     ):
         chosen_seed = seed
         session_of_rounds = temp_session_of_rounds
+print(f"Chosen seed: {chosen_seed}")
 print("\033[92mDONE\033[0m")
 # %%
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 4, 2, 3])
+# %%
+################################################################################
+#######################                                 ########################
+####################### ####### #######  ###### ####### ########################
+#######################    #    #       #          #    ########################
+#######################    #    #######  ####      #    ########################
+#######################    #    #             #    #    ########################
+#######################    #    ####### ######     #    ########################
+#######################                                 ########################
+################################################################################
+# %%
+reload(main)
+df = main.main_df.loc[
+    [
+        "VictorDa",
+        "David",
+        "Félix",
+        "Leila",
+        "Dominik",
+        "Angela",
+        "Colin",
+        "Leo",
+        "FlorianD",
+        "Sarah",
+        "Enzo",
+    ]
+]
+# %%
+df["Happiness"] = 0
+df["Games played"] = 0
+# %%
+reload(main)
+seed = 4
+list_of_players = [main.Player(df.loc[name]) for name in df.index]
+session_of_rounds = main.SessionOfRounds(
+    list_of_players,
+    amount_of_rounds=4,
+    preferences=[
+        "balanced",
+        "balanced",
+        "level",
+        "level",
+    ],
+    level_gap_tol=0.8,
+    num_iter=40,
+    seed=seed,
+    spectrum=True,
+)
 session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 4, 2, 3])
 # %%
