@@ -2123,6 +2123,8 @@ df = main.main_df.loc[
         "FlorianD",
         "Sarah",
         "Enzo",
+        "Aliénor",
+        "Emma",
     ]
 ]
 # %%
@@ -2130,21 +2132,82 @@ df["Happiness"] = 0
 df["Games played"] = 0
 # %%
 reload(main)
-seed = 4
-list_of_players = [main.Player(df.loc[name]) for name in df.index]
-session_of_rounds = main.SessionOfRounds(
-    list_of_players,
-    amount_of_rounds=4,
-    preferences=[
-        "balanced",
-        "balanced",
-        "level",
-        "level",
-    ],
-    level_gap_tol=0.8,
-    num_iter=40,
-    seed=seed,
-    spectrum=True,
-)
-session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 4, 2, 3])
+
+lambda_weight = 0.1
+weight_same_teammate = 5
+
+first_seed = 3
+last_seed = 3
+
+for seed in range(first_seed, last_seed + 1):
+    print(
+        "################################################################################"
+    )
+    print(
+        "################################################################################"
+    )
+    print(
+        f"#################################### SEED: {seed} ###################################"
+    )
+    list_of_players = [main.Player(df.loc[name]) for name in df.index]
+    temp_session_of_rounds = main.SessionOfRounds(
+        list_of_players,
+        amount_of_rounds=4,
+        type_preferences=[
+            "level",
+            "level",
+            "balanced",
+            "balanced",
+        ],
+        # gender_preferences=["open", "open", "mixed", "mixed"],
+        level_gap_tol=0.8,
+        num_iter=100,
+        lambda_weight=lambda_weight,
+        weight_same_teammate=weight_same_teammate,
+        seed=seed,
+        spectrum=False,
+    )
+    print(
+        "##################################### STATS ####################################"
+    )
+    print("current mean happiness:", temp_session_of_rounds.mean_happiness)
+    print("current standard deviation:", temp_session_of_rounds.std_happiness)
+    print(
+        "current score:",
+        temp_session_of_rounds.mean_happiness
+        - lambda_weight * temp_session_of_rounds.std_happiness,
+    )
+    player_pairs, pair_rounds = temp_session_of_rounds.count_all_pairs()
+    output, team_repetition = temp_session_of_rounds.add_team_repetition_to_output(
+        [], player_pairs, pair_rounds
+    )
+    print("\n".join(output))
+
+    current_score = (
+        temp_session_of_rounds.mean_happiness
+        - lambda_weight * temp_session_of_rounds.std_happiness
+    )
+    if seed == first_seed:
+        best_score = current_score
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+    elif current_score > best_score:
+        best_score = current_score
+        chosen_seed = seed
+        session_of_rounds = temp_session_of_rounds
+print(f"Chosen seed: {chosen_seed}")
+least_happy_players = sorted(session_of_rounds.players, key=lambda p: p.happiness)[:3]
+print("least happy players:", [player.name for player in least_happy_players])
+print("\033[92mDONE\033[0m")
 # %%
+reload(main)
+session_of_rounds.print_all_results(print_levels=True, order_num_list=[1, 3, 4, 2])
+# %%
+reload(main)
+main.create_all_session_charts(session_of_rounds)
+
+# %%
+reload(main)
+main.plot_session_charts(session_of_rounds)
+# %%
+list_of_players[1].teammate_history
